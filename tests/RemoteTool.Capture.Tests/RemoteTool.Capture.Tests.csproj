@@ -10,6 +10,8 @@
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
     <ProjectReference Include="../../src/RemoteTool.Capture/RemoteTool.Capture.csproj" />
     <ProjectReference Include="../../src/RemoteTool.Input/RemoteTool.Input.csproj" />
+    <ProjectReference Include="../../src/RemoteTool.Video/RemoteTool.Video.csproj" />
+    <ProjectReference Include="../../src/RemoteTool.Core/RemoteTool.Core.csproj" />
   </ItemGroup>
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
 </Project>

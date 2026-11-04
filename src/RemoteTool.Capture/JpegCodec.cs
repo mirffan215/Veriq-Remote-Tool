@@ -5,13 +5,19 @@ namespace RemoteTool.Capture;
 /// <summary>JPEG encode/decode of BGRA32 regions (SkiaSharp).</summary>
 public static class JpegCodec
 {
-    public static byte[] Encode(ReadOnlySpan<byte> bgra, int stride, PixelRect r, int quality)
+    public static unsafe byte[] Encode(ReadOnlySpan<byte> bgra, int stride, PixelRect r, int quality)
     {
-        // Copy the region into a tight buffer so Skia never reads past the sub-rectangle.
-        var tight = new byte[r.Width * r.Height * 4];
-        for (var row = 0; row < r.Height; row++)
-            bgra.Slice((r.Y + row) * stride + r.X * 4, r.Width * 4).CopyTo(tight.AsSpan(row * r.Width * 4, r.Width * 4));
-        using var image = SKImage.FromPixelCopy(new SKImageInfo(r.Width, r.Height, SKColorType.Bgra8888, SKAlphaType.Opaque), tight, r.Width * 4);
+        if (r.X < 0 || r.Y < 0 || r.Width <= 0 || r.Height <= 0 || r.X + r.Width > stride / 4 || bgra.Length < (long)(r.Y + r.Height - 1) * stride + (r.X + r.Width) * 4L)
+            throw new ArgumentException("region outside buffer");
+        fixed (byte* p = bgra) return EncodeAt((IntPtr)p, stride, r, quality);
+    }
+
+    /// <summary>Encodes a sub-rectangle straight from the capture buffer (no copy); the caller guarantees the pointer covers the region.</summary>
+    public static byte[] EncodeAt(IntPtr bits, int stride, PixelRect r, int quality)
+    {
+        var info = new SKImageInfo(r.Width, r.Height, SKColorType.Bgra8888, SKAlphaType.Opaque);
+        using var pixmap = new SKPixmap(info, bits + r.Y * stride + r.X * 4, stride);
+        using var image = SKImage.FromPixels(pixmap);
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, Math.Clamp(quality, 10, 100));
         return data.ToArray();
     }

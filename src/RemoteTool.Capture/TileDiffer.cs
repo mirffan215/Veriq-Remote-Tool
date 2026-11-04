@@ -11,7 +11,7 @@ public readonly record struct PixelRect(int X, int Y, int Width, int Height);
 public sealed class TileDiffer
 {
     public const int TileSize = 64;
-    private const int MaxBandHeight = 256;
+    private const int MaxBandHeight = 128; // more, smaller bands => the JPEG encodes below parallelise across cores
     private ulong[]? _hashes;
     private int _w, _h;
     private readonly XxHash64 _hasher = new();
@@ -19,7 +19,7 @@ public sealed class TileDiffer
     /// <summary>True when the last <see cref="Diff"/> call had to restart from scratch (first frame or resolution change).</summary>
     public bool WasReset { get; private set; }
 
-    public IReadOnlyList<PixelRect> Diff(ReadOnlySpan<byte> bgra, int width, int height, int stride, bool force)
+    public unsafe IReadOnlyList<PixelRect> Diff(ReadOnlySpan<byte> bgra, int width, int height, int stride, bool force)
     {
         if (width <= 0 || height <= 0 || stride < width * 4) throw new ArgumentException("invalid frame geometry");
         if (bgra.Length < (long)stride * (height - 1) + width * 4L) throw new ArgumentException("buffer too small");
@@ -30,20 +30,33 @@ public sealed class TileDiffer
         var current = new ulong[tx * ty];
         var changed = new bool[tx * ty];
         var changedCount = 0;
-        for (var j = 0; j < ty; j++)
+
+        fixed (byte* basePtr = bgra)
         {
-            var y0 = j * TileSize;
-            var rows = Math.Min(TileSize, height - y0);
-            for (var i = 0; i < tx; i++)
+            var bp = (IntPtr)basePtr;
+            // Tile rows are independent: hash them in parallel (each worker owns its hasher). Small frames stay sequential.
+            Action<int, XxHash64> hashRow = (j, hasher) =>
             {
-                var x0 = i * TileSize;
-                var bytes = Math.Min(TileSize, width - x0) * 4;
-                _hasher.Reset();
-                for (var r = 0; r < rows; r++) _hasher.Append(bgra.Slice((y0 + r) * stride + x0 * 4, bytes));
-                var h = _hasher.GetCurrentHashAsUInt64();
-                current[j * tx + i] = h;
-                if (previous is null || previous[j * tx + i] != h) { changed[j * tx + i] = true; changedCount++; }
-            }
+                var y0 = j * TileSize;
+                var rows = Math.Min(TileSize, height - y0);
+                var local = 0;
+                for (var i = 0; i < tx; i++)
+                {
+                    var x0 = i * TileSize;
+                    var bytes = Math.Min(TileSize, width - x0) * 4;
+                    hasher.Reset();
+                    for (var r = 0; r < rows; r++)
+                        hasher.Append(new ReadOnlySpan<byte>((byte*)bp + (long)(y0 + r) * stride + x0 * 4, bytes));
+                    var h = hasher.GetCurrentHashAsUInt64();
+                    current[j * tx + i] = h;
+                    if (previous is null || previous[j * tx + i] != h) { changed[j * tx + i] = true; local++; }
+                }
+                if (local > 0) Interlocked.Add(ref changedCount, local);
+            };
+            if ((long)width * height >= 1_500_000 && Environment.ProcessorCount > 1) // below ~1080p the threading overhead exceeds the hashing work
+                Parallel.For(0, ty, () => new XxHash64(), (j, _, hasher) => { hashRow(j, hasher); return hasher; }, _ => { });
+            else
+                for (var j = 0; j < ty; j++) hashRow(j, _hasher);
         }
         _hashes = current;
         _w = width;

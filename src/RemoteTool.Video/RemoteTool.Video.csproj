@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>RemoteTool.Video</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Vortice.MediaFoundation" />
+    <ProjectReference Include="../RemoteTool.Core/RemoteTool.Core.csproj" />
+    <ProjectReference Include="../RemoteTool.Capture/RemoteTool.Capture.csproj" />
+  </ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="RemoteTool.Capture.Tests" /></ItemGroup>
+</Project>
