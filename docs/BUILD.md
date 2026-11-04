@@ -65,8 +65,21 @@ Unsigned remote-access tools are routinely quarantined. Before rollout:
    with Defender for Endpoint add a *file/certificate indicator* "Allow" for the signer. Inform your SOC that the tool and the relay host are sanctioned.
 5. Record the SHA-256 (`RemoteTool.exe.sha256`) of each release in your change log.
 
+## Phase 3 tooling
+```powershell
+dotnet run -c Release --project tools/RemoteTool.Bench          # tile-JPEG numbers anywhere; + H.264 on Windows 11. BENCH_1080=1 for 1080p
+RemoteTool.exe --bench-codec result.md                           # same, from the shipped exe
+RemoteTool.exe --verify-audit "%ProgramData%\RemoteTool\service\logs" service     # hash-chain check (exit code 0 = intact)
+RemoteTool.exe --export-recording file.rtrec C:\review [--machine]                   # decrypt a recording to PNGs / stream.h264
+RemoteTool.exe --configure-service --relay r1:443 --relay-key-env RT_KEY --password-env RT_PW --enable   # elevated, headless
+./scripts/sign-app.ps1 -File artifacts\app\RemoteTool.exe -Thumbprint <SHA1>
+./scripts/package-intune.ps1 -IntuneWinAppUtil C:\tools\IntuneWinAppUtil.exe
+./scripts/validate-windows.ps1                                    # on a disposable Windows 11 VM, elevated
+```
+Guides: `SERVICE.md` (architecture, controls, validation checklist), `INTUNE.md` (packaging, allow-listing, updates).
+
 ## Dependencies (pinned in `Directory.Packages.props`)
-SkiaSharp 2.88.9 (JPEG), System.IO.Hashing 8.0.0 (xxHash64 tile hashes), System.Security.Cryptography.ProtectedData 8.0.0 (DPAPI), test-only: xunit 2.9.2, Microsoft.NET.Test.Sdk 17.11.1,
+SkiaSharp 2.88.9 (JPEG/PNG), Vortice.MediaFoundation 3.8.3 (Media Foundation COM wrappers for H.264), System.ServiceProcess.ServiceController 8.0.1 (service shell), System.IO.Hashing 8.0.0 (xxHash64 tile hashes), System.Security.Cryptography.ProtectedData 8.0.0 (DPAPI), test-only: xunit 2.9.2, Microsoft.NET.Test.Sdk 17.11.1,
 xunit.runner.visualstudio 2.8.2, SkiaSharp.NativeAssets.Linux.NoDependencies 2.88.9. Framework: .NET 8, ASP.NET Core 8 (relay). No other runtime dependencies.
 
 ## Manual test checklist (two PCs, ideally on different networks)
@@ -91,3 +104,11 @@ xunit.runner.visualstudio 2.8.2, SkiaSharp.NativeAssets.Linux.NoDependencies 2.8
 16. **Quality adaptation:** throttle B's link (Windows 11 *Network Link Conditioner* / `clumsy`) → picture gets softer, then slower, and recovers when the throttle is removed. Stats bar shows FPS/latency/KB/s.
 17. **Address book:** save an ID with a nickname, restart the app, double-click the entry. No passwords appear in `settings.json`.
 18. **Relay failover:** configure two relays; stop relay 1 → within ~1 min the host shows Online on relay 2 and a viewer still connects by ID. Stop the relay process with `SIGTERM`/`docker stop` → logs show a clean shutdown.
+
+### Phase 3 checks (two PCs + one disposable Windows 11 VM)
+19. **Arabic/RTL:** Settings → Language → العربية → Save → restart. Windows mirror; ID, password, addresses stay left-to-right. Switch back to English.
+20. **Recording:** (service PC) enable *Record unattended sessions*; connect; the viewer shows “● REC”, the banner shows “● REC”; end the session; `--export-recording` produces PNGs; `--verify-audit` still passes. Flip a byte in the `.rtrec` → export fails.
+21. **Audit chain:** edit one line of an audit log in Notepad → `--verify-audit` reports the line; restore → passes.
+22. **H.264:** on both PCs leave *Use H.264* on, scroll a long document on the host; the viewer's status bar shows “· H.264” and KB/s is far lower than with the setting off on either side. Disable the Media Feature Pack on one PC or untick the setting → session still works with tiles.
+23. **Unattended / service:** run `scripts\validate-windows.ps1`, then SERVICE.md “Validation checklist” items 2–10 from the second PC.
+24. **Allow-listing:** deploy the signed package through Intune to a pilot group (INTUNE.md); confirm no Defender/SmartScreen block and the detection rule turns green.

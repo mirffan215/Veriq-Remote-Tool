@@ -11,6 +11,23 @@ jobs:
       - run: dotnet test tests/RemoteTool.Relay.Tests -c Release
       - run: dotnet test tests/RemoteTool.Capture.Tests -c Release
       - run: dotnet list RemoteTool.sln package --vulnerable --include-transitive
+      - name: Tile codec benchmark (Linux numbers)
+        run: dotnet run -c Release --project tools/RemoteTool.Bench | tee bench-linux.md
+      - uses: actions/upload-artifact@v4
+        with: { name: bench-linux, path: bench-linux.md }
+  codec-benchmark-windows:   # real Media Foundation numbers (H.264 vs tiles) on a Windows runner
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 8.0.x }
+      - name: Try to enable Media Foundation (Server SKUs ship without it)
+        shell: pwsh
+        run: Install-WindowsFeature Server-Media-Foundation -ErrorAction SilentlyContinue
+      - run: dotnet run -c Release --project tools/RemoteTool.Bench | Tee-Object -FilePath bench-windows.md
+      - uses: actions/upload-artifact@v4
+        with: { name: bench-windows, path: bench-windows.md }
   build-windows:            # the WPF app can only be built with the Windows Desktop SDK
     runs-on: windows-latest
     steps:

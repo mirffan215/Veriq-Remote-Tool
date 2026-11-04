@@ -33,6 +33,19 @@ A.8.24 cryptography, A.8.26 application security) and NCA ECC (identity/access, 
 | **Supply chain** | Pinned NuGet versions, vulnerability gate in scripts/CI, dependency list in BUILD.md, Authenticode signing guidance | CI |
 | **Resource exhaustion** | Pre-auth connection cap (4), handshake/consent timeouts, heartbeat timeout, relay: max hosts/sessions/connections, idle timeout, pending-pairing timeout | partly tested |
 
+## Phase 3 threats
+
+| Threat | Controls | Verification |
+|---|---|---|
+| **Stolen/guessed permanent password** | ≥12 chars/3 classes; PBKDF2 600k; channel-bound proof; per-source lockout; **global breaker**; master switch; consent when a user is present; everything audited | automated: `DistributedGuessingTripsTheBreaker…`, `WrongOrDisabled…`, `PermanentPasswordTests` |
+| **Local privilege escalation via the service** | exe runs from admin-only Program Files; service data ACL SYSTEM/Admins; helper pipe random name + SYSTEM-only ACL + client-PID check; helper protocol parsers are bounds-checked and fuzzed; no secrets on command lines | automated: protocol fuzz; **Windows validation: ACL checks** (validate script + SERVICE.md #7,#8) |
+| **Silent surveillance** | banner + hotkey on the user desktop, consent when a user is present, audit; recording announced to host user and viewer | automated: consent/recording flags; Windows validation: banner/hotkey |
+| **Recording abuse / leak** | off by default; screen-only (no keystrokes/clipboard/files); AES-GCM per-file key wrapped by DPAPI; tamper/gap detection; retention; hash audited | automated: `RecordsEncryptedAndReadsBack…`, retention test |
+| **Audit tampering** | hash chain across rotation/restart, verifier tool | automated: `ChainVerifiesAcross…` (edit, delete, insert detected) |
+| **Hostile H.264 stream from a malicious host** | decoder is the OS decoder MFT (patched via Windows Update); any decode error ⇒ fallback to tiles; frame/rect size caps unchanged | Windows validation |
+| **Encoder/decoder crash taking the session down** | automatic codec fallback in both directions | automated: `H264IsNegotiated_FallsBack…`, `ViewerDecoderFailure…` |
+| **Distributed denial of unattended access** | breaker pauses logins (documented trade-off D-29) | automated |
+
 ## Known limitations / residual risks (Phase 1)
 1. **Windows 11 / Server 2022 only** (TLS 1.3; DECISIONS D-02/D-16).
 2. **Password proof is not a PAKE** (D-04): a TLS-terminating malicious relay can attempt an offline guess of one 39.6-bit password through 600k PBKDF2 rounds.
@@ -48,3 +61,29 @@ A.8.24 cryptography, A.8.26 application security) and NCA ECC (identity/access, 
 - [x] TLS 1.3 only, mutual, ephemeral certs · [x] channel-bound password proof · [x] lockout + rotation · [x] consent before any control
 - [x] banner + emergency hotkey (code complete, unverified on Windows) · [x] audit log (JSONL, rotation) · [x] frame fuzzing · [x] relay opacity test
 - [x] Clipboard/file controls (Phase 2) · [x] resume tickets · [ ] service/UAC/login screen (Phase 3) · [ ] log hash-chain, session recording opt-in (Phase 3) · [ ] penetration test of the relay before internet exposure
+
+## Final Phase 3 security checklist
+
+Legend: **T** implemented and covered by automated tests that run on Linux CI · **W** implemented, needs the Windows validation (not executed by the author) · **O** operational task for you · **—** not done.
+
+| Control | Status |
+|---|---|
+| TLS 1.3 only, mutual, ephemeral certs; channel-bound password proofs; MITM/relay-MITM detection | **T** |
+| One-time password: single-use, rotation, lockout 5/15 min | **T** |
+| Resume tickets: single-use, 2-minute window, killed by deliberate disconnect | **T** |
+| Frame/parser hardening + fuzzing (network and helper protocol) | **T** |
+| Consent default-deny, per-transfer file consent, path-traversal-safe names, hash-verified transfers | **T** |
+| Clipboard text-only/size-capped/permission-gated | **T** |
+| Permanent password: policy, storage as derived key, master switch, breaker, no one-time password in service mode | **T** |
+| Unattended policy (auto-allow at login screen, ask when user present, control-only) | **T** (decision logic) · **W** (desktop detection on real Winlogon) |
+| Service/helper launch (SYSTEM token, session id, pipe ACL, PID check), SendSAS, desktop switching, secure-desktop capture/input | **W** |
+| Installer ACLs (Program Files, ProgramData), `sc` configuration, recovery actions | **T** (exact commands) · **W** (effect) |
+| Banner + emergency hotkey; consent dialog; recording indicator | **W** |
+| Session recording: encryption, tamper detection, retention, export | **T** (file format) · **W** (DPAPI wrapping) |
+| Audit log hash chain + verifier | **T** |
+| H.264 negotiation + fallback logic | **T** · MF encode/decode **W** |
+| Arabic/RTL resources complete, placeholder parity | **T** · native-speaker review **O** |
+| Code signing, Defender/AppLocker/WDAC allow-listing, Intune packaging | scripts and guides provided; certificates and policy **O** |
+| SIEM forwarding of audit logs (incl. latest chain hash) and alert on `unattended_breaker_tripped`/`source_blocked` | **O** |
+| Penetration test of the relay and the service before internet exposure | **O** |
+| WGC/DXGI capture, hot-plug monitor changes, TPM-bound keys, OPAQUE/SPAKE2+ password proof, relay HA state | **—** (documented future work) |

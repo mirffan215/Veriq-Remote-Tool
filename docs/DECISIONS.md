@@ -89,3 +89,49 @@ configured relay until one pairs them (a "not found" from one relay is not final
 **D-23 Address book** stores target + nickname only (never passwords). Recent connections remain separate.
 
 **D-24 WPF additions remain compiler-unverified** (see D-15). XAML well-formedness, resource keys and event-handler names are checked by script; the C# is syntax-checked.
+
+## Phase 3
+
+**D-25 Unattended access = separate Windows service + per-session SYSTEM helper (SERVICE.md).** The brief suggests `WTSQueryUserToken` + `CreateProcessAsUser`. That gives a *user* token, which (a) does not exist at
+the login screen and (b) cannot open the secure Winlogon desktop (UAC, lock, login). The helper therefore runs with a duplicate of the service's SYSTEM token whose `TokenSessionId` is set to the console session
+(needs SeTcb, held by LocalSystem). `WTSQuerySessionInformation` is used only to name the signed-in user in the audit log. Capture and input live on **one dedicated thread** that calls `SetThreadDesktop(OpenInputDesktop)` before each operation
+(desktop attachment is per thread). The service itself, not the helper, calls `SendSAS` (only services may).
+
+**D-26 Everything Windows-only in Phase 3 is unexecuted.** Service shell, WTS launch, pipe ACL, desktop switching, SendSAS, Media Foundation encode/decode, DPAPI, hotkey, banner, WPF — compiled (service/video projects on Linux with
+platform attributes; WPF only syntax-checked) but **never run** by the author. Mitigations: all decision logic sits behind interfaces and is tested with a simulated helper (`ServiceRuntimeTests`, 12 scenarios incl. helper crash + resume);
+`scripts/validate-windows.ps1` and the SERVICE.md checklist define the on-Windows acceptance; a Windows CI job builds the app and runs the codec benchmark. **Phase 3 acceptance (UAC, lock/login screen, H.264 bandwidth) is therefore NOT yet demonstrated.**
+
+**D-27 Permanent password storage.** Only `PBKDF2(password, salt, 600k)` + salt are stored (machine-DPAPI protected, ACL’d file); the plaintext never touches disk. The derived key is password-equivalent for authentication, so the ACL is a real control.
+Policy: ≥12 chars, ≥3 classes. A stolen *file* can be used to impersonate the password only on the same machine's DPAPI scope. Trade-off vs. a verifier-only scheme: the existing handshake needs the HMAC key on the host; moving to OPAQUE/SPAKE2+ (D-04) would remove it.
+
+**D-28 Unattended ≠ unobserved.** Default `ConsentWhenUserPresent=true`: if anybody is working at the desktop they are asked, and only the login/lock screen is auto-allowed. The master switch is separate from the password so a leaked
+password alone does nothing on a PC where the switch is off. Service mode accepts no one-time password at all, and clipboard/file transfer are never available unattended.
+
+**D-29 Brute-force defence for an always-valid password.** Per-source lockout (D-07) is insufficient behind a relay that can be fed varied source addresses, so a global breaker (20 failures/15 min ⇒ unattended paused 15 min) was added.
+Cost: an attacker can deny unattended access for 15 min at a time (availability for confidentiality); the relay's per-IP limits and the SOC alert on `unattended_breaker_tripped` are the counter.
+
+**D-30 H.264 via Media Foundation, with three-level fallback.** Hardware MFT (async event model) → Microsoft software MFT (sync) → tiles; failure at any moment (init, encode timeout, decoder error) switches that session to tiles via `CodecSwitch` without
+dropping it. `ICodecAPI` (keyframe on demand, CBR, low latency, no B-frames) is bound through a small `ComImport`; Vortice.MediaFoundation 3.8.3 supplies the MF wrappers. Frames are only encoded when the picture changed.
+**Not measured:** the brief's “H.264 measurably reduces bandwidth” needs a Windows 11 run: `RemoteTool.Bench` / `RemoteTool.exe --bench-codec` / the `codec-benchmark-windows` CI job produce the table. Expectation (not a result): large for scrolling/video, small for typing/idle.
+
+**D-31 Recording is host-side, encrypted, screen-only.** Keystrokes are deliberately *not* recorded (they would capture passwords). AES-256-GCM with a per-file key wrapped by DPAPI; counters in nonce+AAD detect tampering and gaps; the consent dialog and the viewer UI announce recording;
+retention default 30 days; the file hash is audited. Anyone who can use the same DPAPI scope can decrypt — that, plus ACLs, is the access control.
+
+**D-32 Audit log is a hash chain.** Each line carries `prev` = SHA-256 of the previous line, across rotation and restarts; `AuditVerifier`/`--verify-audit` detect edits, deletions and insertions. Truncation of the newest lines is *not* detectable locally —
+forward logs (or just the latest `prev`) to the SIEM for that. Older unchained logs are tolerated as a legacy prefix.
+
+**D-33 Arabic/RTL.** Full `Strings.ar.resx` (110 keys, placeholder parity enforced by a test), RTL `FlowDirection` from the UI culture, IDs/passwords/addresses forced LTR. The translation was written without a native reviewer — **have an Arabic speaker review it**
+(especially security wording). The UI shows no calendar dates (logs are ISO-8601 UTC), so Hijri display was not needed in this phase.
+
+**D-34 Performance tuning, measured** (`tools/RemoteTool.Bench`, 1280×720 synthetic desktop content, 4 cores, steady state, ms per frame; bytes unchanged):
+| Scenario | before | after |
+|---|---:|---:|
+| Idle | 1.1 | 1.1 |
+| Typing | 1.3 | 1.5 |
+| Window drag | 3.7 | 1.6 |
+| Scrolling text | 15.0 | 8.3 |
+| Video-like motion | 13.7 | 7.1 |
+Changes: encode JPEG rects in parallel straight from the capture buffer (no copy), smaller full-frame bands (128 rows) so they parallelise, parallel tile hashing only above ~1.5 MP (below that threading cost more than it saved — found by measurement).
+Bandwidth for scrolling is ≈43 Mbit/s at 720p/15 fps with tiles — this is the case H.264 is meant to fix.
+
+**D-35 Windows 11 only (owner decision) and one exe.** Service, helper, setup, CLI tools and UI are modes of the single portable exe; the service copy is installed to Program Files. Closing the main window still exits the user-mode app (no tray yet).

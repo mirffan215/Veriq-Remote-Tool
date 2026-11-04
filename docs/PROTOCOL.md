@@ -1,4 +1,6 @@
-# RemoteTool wire protocol (version 2)
+# RemoteTool wire protocol (version 3)
+
+v3 (Phase 3) replaces `Hello.resume` with an auth *mode* byte (adds the permanent/unattended password), adds a codec set to `ConsentRequest`, the chosen codec + a recording flag to `ConsentResult`, and message types 20–22 (`SpecialKey`, `VideoFrame`, `CodecSwitch`). Older peers are refused (`VersionMismatch`).
 
 v2 (Phase 2) adds `Hello.resume`, `ConsentResult.resumeToken`, `MonitorSelect`, and the clipboard / file messages. v1 and v2 peers refuse each other (`VersionMismatch`).
 
@@ -34,12 +36,12 @@ viewer ══ TLS 1.3 (mutual, ephemeral certs) ═══ end-to-end ═══ h
 
 | Type | Name | Direction | Payload |
 |---|---|---|---|
-| 1 | Hello | V→H | `u16 version`, `str viewerName(≤64)`, `32B nonceV`, `bool resume` |
+| 1 | Hello | V→H | `u16 version`, `str viewerName(≤64)`, `32B nonceV`, `u8 authMode` (0 one-time password, 1 resume ticket, 2 permanent password) |
 | 2 | AuthChallenge | H→V | `str hostName`, `32B nonceH`, `16B salt` |
 | 3 | AuthResponse | V→H | `32B viewerProof` |
 | 4 | AuthResult | H→V | `bool ok`, `u8 failure`, `32B hostProof` (zeros on failure) |
-| 5 | ConsentRequest | V→H | `u8 requestedPermissions` |
-| 6 | ConsentResult | H→V | `bool granted`, `u8 grantedPermissions`, `u8 denyReason`, `bytes resumeToken(≤64, ASCII hex; empty if denied)` |
+| 5 | ConsentRequest | V→H | `u8 requestedPermissions`, `u8 codecs` (bit0 tiles — mandatory, bit1 H.264) |
+| 6 | ConsentResult | H→V | `bool granted`, `u8 grantedPermissions`, `u8 denyReason`, `bytes resumeToken(≤64, ASCII hex; empty if denied)`, `u8 codec` (1 tiles, 2 H.264), `bool recording` |
 | 7 | ScreenInfo | H→V | `u8 n`, `u8 activeMonitor`, n × (`u8 idx, i32 x,y,w,h, bool primary, str name`) |
 | 8 | FrameUpdate | H→V | `u8 monitor, u32 seq, u16 w, u16 h, bool keyframe, u16 nRects`, nRects × (`u16 x,y,w,h`, `bytes jpeg`) |
 | 9 | CursorUpdate | H→V | `u8 shape` |
@@ -52,6 +54,9 @@ viewer ══ TLS 1.3 (mutual, ephemeral certs) ═══ end-to-end ═══ h
 | 16 | Ping | both | `u64 senderTickMs` |
 | 17 | Pong | both | echo of the Ping payload (RTT) |
 | 18 | Bye | both | `u8 reason`, `str text(≤128)` |
+| 20 | SpecialKey | V→H | `u8 kind` (0 = Ctrl+Alt+Del). Honoured only when the host runs as the service (`SendSAS`) and Control was granted; otherwise audited and ignored |
+| 21 | VideoFrame | H→V | `u8 monitor, u32 seq, u16 w, u16 h, bool keyframe, bytes annexB` — one H.264 access unit; keyframes carry SPS/PPS |
+| 22 | CodecSwitch | both | `u8 codec`: host→viewer “stream is now tiles” after an encoder failure; viewer→host “my decoder failed, send tiles”. The next frame is a keyframe |
 | 19 | MonitorSelect | V→H | `u8 monitorIndex`; host replies with a new `ScreenInfo` and a keyframe of that monitor |
 
 Permissions bits: 1 Control, 2 Clipboard, 4 FileTransfer. Message direction is enforced: e.g. a viewer sending `FrameUpdate` is a protocol error.
@@ -111,3 +116,21 @@ Clients may be configured with several relays: a host registers with the first r
 After `Ready` the relay sends no more frames on either leg; it only copies bytes (16 KiB buffers) until either side closes or 90 s pass without traffic.
 `instanceId` is random per host *process*: same ID + same instanceId = reconnect of the same process (replaces the stale registration);
 same ID + different instanceId while the old one is alive = duplicate ⇒ `IdTaken`.
+
+## 6. Permanent (unattended) password mode
+`Hello.authMode = 2`. The host answers with `AuthChallenge.salt` = its fixed per-install salt and keeps only `key = PBKDF2(password, salt, 600k)` (protected at rest); the proofs are exactly those of §4, computed with that key. Because
+the key is fixed, replay is prevented solely by the fresh nonces and the certificate-fingerprint binding (as in §4). A host that is not the service, has unattended disabled, has no password, or whose breaker is tripped still sends a random
+salt and fails the proof like a wrong password — outsiders cannot tell the cases apart.
+
+## 7. Video codecs
+Tiles (`FrameUpdate`) are mandatory. H.264 is used only if the viewer offered it, the host has an encoder, and both ends agreed in `ConsentResult.codec`. Either side can force the fallback with `CodecSwitch`; the stream restarts from a keyframe.
+Odd frame sizes are cropped by 1 px for NV12.
+
+## 8. Service ⇄ helper protocol (local named pipe, not network)
+Same framing, separate type space (`HelperMessage` in `RemoteTool.Service/Helper/HelperProtocol.cs`): requests `GetMonitors, NextFrame, NextH264, GetCursor, GetDesktop, Mouse, Key, ReleaseAll, ShowBanner, HideBanner, AskConsent, Shutdown`;
+responses `Monitors, Frame, Video, Cursor, Desktop, ConsentAnswer, Error`; events `EmergencyHotkey, BannerDisconnect`; the helper opens with `Hello(pid, session, h264, user)`. One outstanding request at a time; input messages are fire-and-forget.
+The pipe name is random per launch, its ACL admits SYSTEM only, and the service checks that the connecting process id is the one it started.
+
+## 9. Recording file format (`.rtrec`)
+`"RTREC001" | u16 version | 8B nonce prefix | bytes(wrapped key)` then records `u32 length | AES-256-GCM(ciphertext ‖ 16B tag)`; nonce = prefix ‖ u32 counter, AAD = header ‖ counter.
+Plaintext = `u64 ms | u8 type (1 meta, 2 tile frame, 3 H.264 frame, 4 event, 5 end) | payload`. A missing `End` record means the session or machine crashed.
