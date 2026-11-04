@@ -6,6 +6,7 @@
         SizeToContent="WidthAndHeight" Background="#C62828" Title="RemoteTool">
   <StackPanel Orientation="Horizontal" Margin="16,8">
     <TextBlock x:Name="Message" Foreground="White" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
+    <TextBlock x:Name="RecText" Foreground="White" FontWeight="Bold" VerticalAlignment="Center" Margin="12,0,0,0" Visibility="Collapsed" Text="{loc:T Banner_Rec}" />
     <TextBlock x:Name="Hint" Foreground="#FFE0E0" FontSize="11" VerticalAlignment="Center" Margin="14,0,14,0" Text="{loc:T Banner_Hotkey}" />
     <Button x:Name="SendFileButton" Content="{loc:T Banner_SendFile}" Visibility="Collapsed" Click="SendFile_Click" />
     <Button x:Name="DisconnectButton" Content="{loc:T Banner_Disconnect}" Margin="0" Click="Disconnect_Click" />

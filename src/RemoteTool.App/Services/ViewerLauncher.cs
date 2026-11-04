@@ -4,12 +4,13 @@ using RemoteTool.Core.Config;
 using RemoteTool.Core.Protocol;
 using RemoteTool.Core.Relay;
 using RemoteTool.Core.Session;
+using RemoteTool.Video;
 
 namespace RemoteTool.App.Services;
 
 /// <summary>Everything a viewer window needs besides the session itself (clipboard, file prompt, re-dial for auto-reconnect).</summary>
 public sealed record ViewerContext(string ViewerName, IAuditLog Audit, Func<CancellationToken, Task<Stream>> Redial,
-    Func<IClipboardAccess> ClipboardFactory, IFileTransferPrompt Prompt, FileTransferOptions FileOptions);
+    Func<IClipboardAccess> ClipboardFactory, IFileTransferPrompt Prompt, FileTransferOptions FileOptions, Func<IH264Decoder?> DecoderFactory);
 
 public sealed class ViewerLauncher
 {
@@ -29,6 +30,8 @@ public sealed class ViewerLauncher
     }
 
     /// <summary>Opens a raw transport to the target (relay pairing or direct TCP). Used for first connect and for reconnects.</summary>
+    private static bool Dispose(IDisposable d) { d.Dispose(); return true; }
+
     public async Task<Stream> DialAsync(ConnectTarget target, CancellationToken ct)
     {
         var s = _store.Current;
@@ -61,14 +64,17 @@ public sealed class ViewerLauncher
         }
     }
 
-    public async Task<(ViewerSession Session, ViewerContext Context)> ConnectAsync(ConnectTarget target, string password, CancellationToken ct)
+    public async Task<(ViewerSession Session, ViewerContext Context)> ConnectAsync(ConnectTarget target, string password, bool permanent, CancellationToken ct)
     {
         var s = _store.Current;
         _audit.Write("connection_attempt", ("target", target switch { ConnectTarget.ById b => b.Id, ConnectTarget.Direct d => $"{d.Host}:{d.Port}", _ => "?" }));
         var transport = await DialAsync(target, ct);
-        var session = await ViewerSession.ConnectAsync(transport, s.DisplayName, password, _audit, Permissions.All, ct);
+        // Offer H.264 only if this PC can decode it; the host decides and can still fall back to tiles at any time.
+        var h264 = s.EnableH264 && Video.H264Support.CreateDecoder() is { } probe ? Dispose(probe) : false;
+        var session = await ViewerSession.ConnectAsync(transport, s.DisplayName, password, _audit, Permissions.All, ct, permanent: permanent,
+            codecs: h264 ? VideoCodecs.TileJpeg | VideoCodecs.H264 : VideoCodecs.TileJpeg);
         var ctx = new ViewerContext(s.DisplayName, _audit, c => DialAsync(target, c), () => new WindowsClipboard(), _prompt,
-            new FileTransferOptions(_receiveDir, Math.Max(1, s.MaxFileTransferMb) * 1024L * 1024));
+            new FileTransferOptions(_receiveDir, Math.Max(1, s.MaxFileTransferMb) * 1024L * 1024), () => Video.H264Support.CreateDecoder());
         return (session, ctx);
     }
 }

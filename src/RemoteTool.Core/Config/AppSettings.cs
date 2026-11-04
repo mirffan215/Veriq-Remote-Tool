@@ -31,6 +31,10 @@ public sealed class AppSettings
     public bool AllowClipboard { get; set; } = true;
     public bool AllowFileTransfer { get; set; } = true;
     public string Theme { get; set; } = "System";
+    /// <summary>"System", "en" or "ar". Applied at the next start.</summary>
+    public string Language { get; set; } = "System";
+    /// <summary>Offer/use H.264 (hardware when possible) instead of tile-JPEG. Falls back automatically if it fails.</summary>
+    public bool EnableH264 { get; set; } = true;
     public List<RecentConnection> Recent { get; set; } = new();
     /// <summary>Saved IDs / addresses with nicknames. Never contains passwords.</summary>
     public List<AddressBookEntry> AddressBook { get; set; } = new();

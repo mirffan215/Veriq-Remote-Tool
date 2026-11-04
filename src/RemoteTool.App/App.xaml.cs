@@ -12,9 +12,20 @@ public partial class App : Application
     private Mutex? _single;
     private HostController? _host;
 
+    public AppMode Mode { get; set; }
+    public string[] Args { get; set; } = Array.Empty<string>();
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (Mode == AppMode.Helper) { Services.HelperHost.Start(this, Args); return; }   // no UI of its own: banner/consent only when the service asks
+        if (Mode == AppMode.ServiceSetup)
+        {
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
+            MainWindow = new ServiceSetupWindow();
+            MainWindow.Show();
+            return;
+        }
         _single = new Mutex(true, @"Local\RemoteTool.SingleInstance", out var first);
         if (!first)
         {
@@ -36,6 +47,7 @@ public partial class App : Application
         hostAudit.Write("id_issued", ("id", store.Current.Id), ("firstRun", firstRun));
 
         var protector = new DpapiProtector();
+        ApplyLanguage(store.Current.Language);
         ThemeManager.Apply(store.Current.Theme);
         _host = new HostController(Dispatcher, store, protector, hostAudit, paths.ReceivedFilesDirectory);
         _host.ApplySettings();
@@ -61,6 +73,15 @@ public partial class App : Application
         if (string.IsNullOrEmpty(s.RelayAccessKeyProtected) && !string.IsNullOrWhiteSpace(key)) { s.RelayAccessKeyProtected = new DpapiProtector().Protect(key); changed = true; }
         if (string.IsNullOrEmpty(s.RelayFingerprint) && !string.IsNullOrWhiteSpace(fp)) { s.RelayFingerprint = fp.Trim(); changed = true; }
         if (changed) store.Save();
+    }
+
+    /// <summary>"ar" / "en" / "System". Resources fall back to English for any missing key; RTL layout follows the culture.</summary>
+    private static void ApplyLanguage(string setting)
+    {
+        if (setting is not ("ar" or "en")) return;
+        var c = new System.Globalization.CultureInfo(setting);
+        System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = c;
+        System.Globalization.CultureInfo.CurrentUICulture = c;
     }
 
     protected override void OnExit(ExitEventArgs e)

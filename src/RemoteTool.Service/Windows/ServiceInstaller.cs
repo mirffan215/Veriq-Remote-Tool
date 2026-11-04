@@ -66,6 +66,13 @@ public static class ServiceInstaller
         if (purgeData && Directory.Exists(paths.ServiceDir)) Directory.Delete(paths.ServiceDir, true);
     }
 
+    public static void Restart(Action<string> log)
+    {
+        Run(ScCommands.Stop(), log, ignoreErrors: true);
+        WaitStopped();
+        Run(ScCommands.Start(), log);
+    }
+
     public static bool IsInstalled() => Query().Contains("SERVICE_NAME", StringComparison.OrdinalIgnoreCase);
     public static bool IsRunning() => Query().Contains("RUNNING", StringComparison.OrdinalIgnoreCase);
 

@@ -9,7 +9,9 @@
         <Button x:Name="FitButton" Focusable="False" Content="{loc:T Viewer_Actual}" Click="Fit_Click" />
         <Button x:Name="MonitorButton" Focusable="False" Visibility="Collapsed" Click="Monitor_Click" />
         <Button x:Name="SendFileButton" Focusable="False" Content="{loc:T Viewer_SendFile}" IsEnabled="False" Click="SendFile_Click" />
+        <Button x:Name="CadButton" Focusable="False" Content="{loc:T Viewer_CtrlAltDel}" Click="Cad_Click" />
         <Button x:Name="FullButton" Focusable="False" Content="{loc:T Viewer_Full}" Click="Full_Click" />
+        <TextBlock x:Name="RecLabel" Text="{loc:T Viewer_Rec}" Foreground="{DynamicResource DangerBrush}" FontWeight="Bold" VerticalAlignment="Center" Margin="4,0,12,0" Visibility="Collapsed" />
         <TextBlock x:Name="ViewOnlyLabel" Text="{loc:T Viewer_ViewOnly}" Foreground="{DynamicResource DangerBrush}" VerticalAlignment="Center" Margin="4,0,12,0" Visibility="Collapsed" />
         <Button Focusable="False" Content="{loc:T Viewer_Disconnect}" Style="{StaticResource DangerButton}" DockPanel.Dock="Right" Margin="0" Click="Disconnect_Click" />
         <TextBlock x:Name="StatusText" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="0,0,16,0" Foreground="{DynamicResource MutedBrush}" />

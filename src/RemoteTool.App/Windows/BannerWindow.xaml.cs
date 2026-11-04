@@ -11,13 +11,14 @@ public partial class BannerWindow : Window
     private readonly Action? _sendFile;
     private readonly DispatcherTimer _keepOnTop = new() { Interval = TimeSpan.FromSeconds(2) };
 
-    public BannerWindow(string viewerName, Action disconnect, Action? sendFile = null)
+    public BannerWindow(string viewerName, Action disconnect, Action? sendFile = null, bool recording = false)
     {
         InitializeComponent();
         FlowDirection = Loc.Flow;
         _disconnect = disconnect;
         _sendFile = sendFile;
         if (sendFile is not null) SendFileButton.Visibility = Visibility.Visible;
+        if (recording) RecText.Visibility = Visibility.Visible;
         Message.Text = Loc.F("Banner_Text", viewerName);
         SizeChanged += (_, _) => { Left = (SystemParameters.PrimaryScreenWidth - ActualWidth) / 2; Top = 0; };
         // Re-assert Topmost so another topmost window cannot permanently cover the indicator.

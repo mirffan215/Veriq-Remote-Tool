@@ -1,3 +1,4 @@
+using RemoteTool.Service;
 using System.Windows;
 using System.Windows.Input;
 using RemoteTool.App.Localization;
@@ -37,6 +38,10 @@ public partial class MainWindow : Window
         ViewOnlyBox.IsChecked = s.ViewOnly;
         ClipboardBox.IsChecked = s.AllowClipboard;
         FilesBox.IsChecked = s.AllowFileTransfer;
+        H264Box.IsChecked = s.EnableH264;
+        LangSystem.IsChecked = s.Language == "System" || (s.Language != "en" && s.Language != "ar");
+        LangEn.IsChecked = s.Language == "en";
+        LangAr.IsChecked = s.Language == "ar";
         RelayAddressBox.Text = s.RelayAddress;
         RelayFingerprintBox.Text = s.RelayFingerprint;
         DirectBox.IsChecked = s.DirectListenerEnabled;
@@ -78,6 +83,19 @@ public partial class MainWindow : Window
 
     private void RefreshState()
     {
+        var svc = _host.ServiceManaged ? ServiceStatus.Read() : null;
+        if (svc is not null)
+        {
+            // The Windows service owns this PC's identity: show ITS ID; there is no one-time password in service mode.
+            IdText.Text = ConnectionId.Format(svc.Id);
+            PasswordText.Text = "—";
+            ServiceNote.Text = Loc.F("Svc_Managed", ConnectionId.Format(svc.Id), Loc.T(svc.UnattendedEnabled ? "Svc_On" : "Svc_Off"));
+            RelayStatusText.Text = "Relay: " + svc.Relay;
+            StatusDot.Fill = svc.Relay == "Online" ? System.Windows.Media.Brushes.LimeGreen : System.Windows.Media.Brushes.Orange;
+            DirectStatusText.Text = "";
+            return;
+        }
+        ServiceNote.Text = "";
         IdText.Text = ConnectionId.Format(_store.Current.Id);
         PasswordText.Text = _host.Service.Password;
         var (text, color) = _host.Service.RelayStatus switch
@@ -102,6 +120,13 @@ public partial class MainWindow : Window
     private void CopyId_Click(object sender, RoutedEventArgs e) => ToClipboard(ConnectionId.Format(_store.Current.Id));
     private void CopyPassword_Click(object sender, RoutedEventArgs e) => ToClipboard(_host.Service.Password);
     private void RefreshPassword_Click(object sender, RoutedEventArgs e) => _host.Service.RotatePassword();
+    /// <summary>Relaunches this exe elevated (UAC) in service-setup mode. The normal UI never runs with admin rights.</summary>
+    private void ServiceSetup_Click(object sender, RoutedEventArgs e)
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, "--service-setup") { UseShellExecute = true, Verb = "runas" }); }
+        catch (System.ComponentModel.Win32Exception) { /* user declined the UAC prompt */ }
+    }
+
     private void ClearKey_Click(object sender, RoutedEventArgs e) { _store.Current.RelayAccessKeyProtected = ""; RelayKeyBox.Clear(); _store.Save(); _host.ApplySettings(); }
 
     private void GenerateId_Click(object sender, RoutedEventArgs e)
@@ -124,6 +149,8 @@ public partial class MainWindow : Window
         s.ViewOnly = ViewOnlyBox.IsChecked == true;
         s.AllowClipboard = ClipboardBox.IsChecked == true;
         s.AllowFileTransfer = FilesBox.IsChecked == true;
+        s.EnableH264 = H264Box.IsChecked == true;
+        s.Language = LangAr.IsChecked == true ? "ar" : LangEn.IsChecked == true ? "en" : "System";
         s.RelayAddress = relay;
         s.RelayFingerprint = RelayFingerprintBox.Text.Trim();
         if (RelayKeyBox.Password.Length > 0) s.RelayAccessKeyProtected = _protector.Protect(RelayKeyBox.Password);
@@ -155,7 +182,7 @@ public partial class MainWindow : Window
         _connectCts = new CancellationTokenSource();
         try
         {
-            var (session, ctx) = await _viewer.ConnectAsync(target!, password, _connectCts.Token);
+            var (session, ctx) = await _viewer.ConnectAsync(target!, password, UnattendedBox.IsChecked == true, _connectCts.Token);
             _store.AddRecent(target is ConnectTarget.ById b ? ConnectionId.Format(b.Id) : TargetBox.Text.Trim());
             RefreshRecent();
             ConnectStatus.Text = "";

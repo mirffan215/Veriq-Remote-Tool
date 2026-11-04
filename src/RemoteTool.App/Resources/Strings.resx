@@ -86,4 +86,36 @@ It will be saved in the "RemoteTool Received" folder. Only accept files you expe
  <data name="Addr_Nickname" xml:space="preserve"><value>Nickname</value></data>
  <data name="Addr_Save" xml:space="preserve"><value>Save</value></data>
  <data name="Addr_Remove" xml:space="preserve"><value>Remove</value></data>
+ <data name="Svc_Button" xml:space="preserve"><value>Unattended access (Windows service)…</value></data>
+ <data name="Svc_Managed" xml:space="preserve"><value>This PC is managed by the RemoteTool service. ID: {0}. Unattended access: {1}.</value></data>
+ <data name="Svc_On" xml:space="preserve"><value>enabled</value></data>
+ <data name="Svc_Off" xml:space="preserve"><value>disabled</value></data>
+ <data name="Svc_Title" xml:space="preserve"><value>Unattended access - service setup</value></data>
+ <data name="Svc_Warning" xml:space="preserve"><value>Unattended access lets someone who knows the permanent password control this PC without anybody clicking Allow. It runs as SYSTEM and works at the login screen and across UAC prompts. Enable it only on PCs where that is intended (servers, kiosks, support-managed machines).</value></data>
+ <data name="Svc_Status" xml:space="preserve"><value>Service: {0}</value></data>
+ <data name="Svc_NotInstalled" xml:space="preserve"><value>not installed</value></data>
+ <data name="Svc_Running" xml:space="preserve"><value>running</value></data>
+ <data name="Svc_Stopped" xml:space="preserve"><value>stopped</value></data>
+ <data name="Svc_Enable" xml:space="preserve"><value>Enable unattended access (master switch)</value></data>
+ <data name="Svc_Consent" xml:space="preserve"><value>Ask the signed-in user before connecting (recommended)</value></data>
+ <data name="Svc_Record" xml:space="preserve"><value>Record unattended sessions (encrypted)</value></data>
+ <data name="Svc_Retention" xml:space="preserve"><value>Keep recordings (days)</value></data>
+ <data name="Svc_Password" xml:space="preserve"><value>Permanent password (leave empty to keep the current one)</value></data>
+ <data name="Svc_Password2" xml:space="preserve"><value>Repeat permanent password</value></data>
+ <data name="Svc_Apply" xml:space="preserve"><value>Install / apply</value></data>
+ <data name="Svc_Uninstall" xml:space="preserve"><value>Uninstall service</value></data>
+ <data name="Svc_Purge" xml:space="preserve"><value>Also delete configuration, logs and recordings</value></data>
+ <data name="Svc_Done" xml:space="preserve"><value>Done. The service has been restarted.</value></data>
+ <data name="Svc_Mismatch" xml:space="preserve"><value>The two passwords differ.</value></data>
+ <data name="Svc_Confirm_Uninstall" xml:space="preserve"><value>Remove the unattended-access service from this PC?</value></data>
+ <data name="Setting_H264" xml:space="preserve"><value>Use H.264 video (hardware if available); falls back automatically</value></data>
+ <data name="Setting_Language" xml:space="preserve"><value>Language (applied at next start)</value></data>
+ <data name="Lang_System" xml:space="preserve"><value>System</value></data>
+ <data name="Lang_En" xml:space="preserve"><value>English</value></data>
+ <data name="Lang_Ar" xml:space="preserve"><value>العربية</value></data>
+ <data name="Rec_Notice" xml:space="preserve"><value>This session will be recorded.</value></data>
+ <data name="Viewer_Rec" xml:space="preserve"><value>● REC - this session is being recorded</value></data>
+ <data name="Viewer_CtrlAltDel" xml:space="preserve"><value>Ctrl+Alt+Del</value></data>
+ <data name="Connect_Unattended" xml:space="preserve"><value>Use permanent (unattended) password</value></data>
+ <data name="Banner_Rec" xml:space="preserve"><value>● REC</value></data>
 </root>

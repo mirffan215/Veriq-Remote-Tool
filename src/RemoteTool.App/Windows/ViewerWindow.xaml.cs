@@ -48,6 +48,10 @@ public partial class ViewerWindow : Window
         Title = $"{s.HostName} - RemoteTool";
         ViewOnlyLabel.Visibility = (s.Permissions & Permissions.Control) == 0 ? Visibility.Visible : Visibility.Collapsed;
         s.FrameReceived += OnFrame;
+        s.FullFrameReceived += OnFullFrame;
+        RecLabel.Visibility = s.Recording ? Visibility.Visible : Visibility.Collapsed;
+        CadButton.IsEnabled = (s.Permissions & Permissions.Control) != 0;
+        if (s.Codec == VideoCodecs.H264 && _ctx.DecoderFactory() is { } decoder) s.AttachH264Decoder(decoder); // no decoder => the session itself asks the host for tiles
         s.CursorChanged += OnCursor;
         s.ScreenInfoReceived += info => Dispatcher.InvokeAsync(() => OnScreenInfo(info));
         s.Ended += (reason, _) => Dispatcher.InvokeAsync(() => OnSessionEnded(s, reason));
@@ -81,6 +85,28 @@ public partial class ViewerWindow : Window
         try { Dispatcher.Invoke(() => Apply(f, decoded), DispatcherPriority.Render); }
         catch (TaskCanceledException) { }
     }
+
+    /// <summary>H.264 path: the session already decoded a whole BGRA frame.</summary>
+    private void OnFullFrame(DecodedFrame f)
+    {
+        try { Dispatcher.Invoke(() => ApplyFull(f), DispatcherPriority.Render); }
+        catch (TaskCanceledException) { }
+    }
+
+    private void ApplyFull(DecodedFrame f)
+    {
+        if (_closing) return;
+        if (_bitmap is null || _bitmap.PixelWidth != f.Width || _bitmap.PixelHeight != f.Height)
+        {
+            _bitmap = new WriteableBitmap(f.Width, f.Height, 96, 96, PixelFormats.Bgra32, null);
+            Screen.Source = _bitmap;
+            UpdateImageSize();
+        }
+        _bitmap.WritePixels(new Int32Rect(0, 0, f.Width, f.Height), f.Bgra, f.Width * 4, 0);
+        _frames++;
+    }
+
+    private void Cad_Click(object sender, RoutedEventArgs e) => _ = _session.SendSpecialKeyAsync(SpecialKeyKind.CtrlAltDel);
 
     private void Apply(FrameUpdateMessage f, List<(TileRect rect, byte[] pixels)> tiles)
     {
@@ -146,7 +172,7 @@ public partial class ViewerWindow : Window
         var bytes = _session.BytesReceived;
         var kbps = (bytes - _lastBytes) / 1024;
         _lastBytes = bytes;
-        StatsText.Text = Loc.F("Viewer_Stats", _frames, (int)_session.Latency.TotalMilliseconds, kbps);
+        StatsText.Text = Loc.F("Viewer_Stats", _frames, (int)_session.Latency.TotalMilliseconds, kbps) + (_session.Codec == VideoCodecs.H264 ? " · H.264" : "");
         _frames = 0;
     }
 

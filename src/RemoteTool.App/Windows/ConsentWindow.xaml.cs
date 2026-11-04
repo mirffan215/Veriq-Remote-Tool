@@ -16,6 +16,7 @@ public partial class ConsentWindow : Window
         Headline.Text = Loc.F("Consent_Text", info.ViewerName);
         SourceText.Text = Loc.F("Consent_Source", info.Source);
         RelayNote.Visibility = info.ViaRelay ? Visibility.Visible : Visibility.Collapsed;
+        RecNote.Visibility = info.Recording ? Visibility.Visible : Visibility.Collapsed;
         Configure(ControlBox, info, Permissions.Control);
         Configure(ClipboardBox, info, Permissions.Clipboard);
         Configure(FilesBox, info, Permissions.FileTransfer);

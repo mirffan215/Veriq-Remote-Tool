@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+ <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+ <resheader name="version"><value>2.0</value></resheader>
+ <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+ <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+ <data name="App_Title" xml:space="preserve"><value>RemoteTool</value></data>
+ <data name="Tab_Allow" xml:space="preserve"><value>السماح بالوصول</value></data>
+ <data name="Tab_Connect" xml:space="preserve"><value>اتصال</value></data>
+ <data name="Your_Id" xml:space="preserve"><value>معرّفك</value></data>
+ <data name="One_Time_Password" xml:space="preserve"><value>كلمة مرور لمرة واحدة</value></data>
+ <data name="Copy" xml:space="preserve"><value>نسخ</value></data>
+ <data name="Refresh" xml:space="preserve"><value>كلمة مرور جديدة</value></data>
+ <data name="Relay_Online" xml:space="preserve"><value>المرحّل: متصل</value></data>
+ <data name="Relay_Offline" xml:space="preserve"><value>المرحّل: غير متصل</value></data>
+ <data name="Relay_Connecting" xml:space="preserve"><value>المرحّل: جارٍ الاتصال…</value></data>
+ <data name="Relay_Denied" xml:space="preserve"><value>المرحّل: تم رفض الوصول (تحقق من مفتاح الوصول)</value></data>
+ <data name="Relay_Disabled" xml:space="preserve"><value>المرحّل: غير مُعدّ</value></data>
+ <data name="Settings" xml:space="preserve"><value>الإعدادات</value></data>
+ <data name="Perm_ViewOnly" xml:space="preserve"><value>للعرض فقط (منع الفأرة ولوحة المفاتيح عن بُعد)</value></data>
+ <data name="Perm_Clipboard" xml:space="preserve"><value>السماح بالحافظة</value></data>
+ <data name="Perm_Files" xml:space="preserve"><value>السماح بنقل الملفات</value></data>
+ <data name="Relay_Address" xml:space="preserve"><value>خادم/خوادم المرحّل host:port (عدة عناوين مفصولة بفواصل = تجاوز الأعطال)</value></data>
+ <data name="Relay_Key" xml:space="preserve"><value>مفتاح وصول المرحّل (اتركه فارغًا للإبقاء على الحالي)</value></data>
+ <data name="Relay_Fingerprint" xml:space="preserve"><value>بصمة SHA-256 لشهادة المرحّل (تثبيت اختياري)</value></data>
+ <data name="Clear" xml:space="preserve"><value>مسح المفتاح المخزّن</value></data>
+ <data name="Direct_Enable" xml:space="preserve"><value>تفعيل الاتصال المباشر - النمط A (يفتح منفذ استماع)</value></data>
+ <data name="Direct_Port" xml:space="preserve"><value>المنفذ</value></data>
+ <data name="Allow_List" xml:space="preserve"><value>عناوين IP المسموح لها بالاتصال في النمط A (مفصولة بفواصل، فارغ = أي عنوان)</value></data>
+ <data name="Display_Name" xml:space="preserve"><value>الاسم الظاهر للمشاهدين</value></data>
+ <data name="Theme" xml:space="preserve"><value>المظهر</value></data>
+ <data name="Theme_System" xml:space="preserve"><value>النظام</value></data>
+ <data name="Theme_Light" xml:space="preserve"><value>فاتح</value></data>
+ <data name="Theme_Dark" xml:space="preserve"><value>داكن</value></data>
+ <data name="Generate_Id" xml:space="preserve"><value>إنشاء معرّف جديد</value></data>
+ <data name="Save" xml:space="preserve"><value>حفظ الإعدادات</value></data>
+ <data name="Saved" xml:space="preserve"><value>تم حفظ الإعدادات.</value></data>
+ <data name="Connect_Target" xml:space="preserve"><value>المعرّف البعيد أو IP:المنفذ</value></data>
+ <data name="Connect_Password" xml:space="preserve"><value>كلمة المرور</value></data>
+ <data name="Connect_Button" xml:space="preserve"><value>اتصال</value></data>
+ <data name="Connecting" xml:space="preserve"><value>جارٍ الاتصال…</value></data>
+ <data name="Recent" xml:space="preserve"><value>الاتصالات الأخيرة (انقر مرتين لإعادة الاستخدام)</value></data>
+ <data name="Consent_Title" xml:space="preserve"><value>اتصال وارد</value></data>
+ <data name="Consent_Text" xml:space="preserve"><value>{0} يريد الاتصال بهذا الجهاز.</value></data>
+ <data name="Consent_Source" xml:space="preserve"><value>من: {0}</value></data>
+ <data name="Consent_Relay_Note" xml:space="preserve"><value>الاتصال عبر المرحّل: العنوان المعروض مُبلَّغ من المرحّل.</value></data>
+ <data name="Allow" xml:space="preserve"><value>سماح</value></data>
+ <data name="Deny" xml:space="preserve"><value>رفض</value></data>
+ <data name="Perm_Control" xml:space="preserve"><value>السماح بالتحكم عن بُعد (الفأرة ولوحة المفاتيح)</value></data>
+ <data name="Banner_Text" xml:space="preserve"><value>يجري التحكم بهذا الجهاز بواسطة {0}</value></data>
+ <data name="Banner_Disconnect" xml:space="preserve"><value>قطع الاتصال</value></data>
+ <data name="Banner_Hotkey" xml:space="preserve"><value>طوارئ: Ctrl+Alt+Shift+Q</value></data>
+ <data name="Viewer_Fit" xml:space="preserve"><value>ملاءمة</value></data>
+ <data name="Viewer_Actual" xml:space="preserve"><value>100%</value></data>
+ <data name="Viewer_Full" xml:space="preserve"><value>ملء الشاشة</value></data>
+ <data name="Viewer_Disconnect" xml:space="preserve"><value>قطع الاتصال</value></data>
+ <data name="Viewer_Stats" xml:space="preserve"><value>{0} إطار/ث · {1} م‌ث · {2} ك.ب/ث</value></data>
+ <data name="Viewer_ViewOnly" xml:space="preserve"><value>للعرض فقط</value></data>
+ <data name="Err_BadTarget" xml:space="preserve"><value>أدخل معرّفًا من 9 أرقام أو host:port.</value></data>
+ <data name="Err_NoRelay" xml:space="preserve"><value>لم يتم إعداد خادم مرحّل (تبويب السماح بالوصول ← الإعدادات).</value></data>
+ <data name="Err_Failed" xml:space="preserve"><value>فشل الاتصال: {0}</value></data>
+ <data name="Session_Ended" xml:space="preserve"><value>انتهت الجلسة ({0}).</value></data>
+ <data name="New_Id_Confirm" xml:space="preserve"><value>إنشاء معرّف جديد؟ سيتوقف المعرّف الحالي عن العمل.</value></data>
+ <data name="Already_Running" xml:space="preserve"><value>RemoteTool قيد التشغيل بالفعل.</value></data>
+ <data name="Err_Port" xml:space="preserve"><value>يجب أن يكون المنفذ رقمًا بين 1 و65535.</value></data>
+ <data name="Err_Listen" xml:space="preserve"><value>تعذّر فتح منفذ الاتصال المباشر: {0}</value></data>
+ <data name="Err_Relay" xml:space="preserve"><value>يجب أن يكون عنوان المرحّل بالصيغة host:port.</value></data>
+ <data name="File_Title" xml:space="preserve"><value>ملف وارد</value></data>
+ <data name="File_Confirm" xml:space="preserve"><value>{0} يريد إرسال ملف إليك:
+
+{1}  ({2})
+
+سيُحفظ في مجلد "RemoteTool Received". اقبل فقط الملفات التي تتوقعها.</value></data>
+ <data name="Viewer_SendFile" xml:space="preserve"><value>إرسال ملف…</value></data>
+ <data name="Viewer_Monitor" xml:space="preserve"><value>الشاشة {0}</value></data>
+ <data name="Viewer_MonitorItem" xml:space="preserve"><value>الشاشة {0}  ({1}×{2})</value></data>
+ <data name="Viewer_Reconnecting" xml:space="preserve"><value>انقطع الاتصال - جارٍ إعادة الاتصال (المحاولة {0})…</value></data>
+ <data name="File_Sent" xml:space="preserve"><value>تم إرسال الملف والتحقق منه (SHA-256).</value></data>
+ <data name="File_Declined" xml:space="preserve"><value>رفض الطرف الآخر الملف.</value></data>
+ <data name="File_Hash" xml:space="preserve"><value>فشل النقل: عدم تطابق المجموع الاختباري.</value></data>
+ <data name="File_Failed" xml:space="preserve"><value>فشل النقل.</value></data>
+ <data name="File_Cancelled" xml:space="preserve"><value>تم إلغاء النقل.</value></data>
+ <data name="File_Received" xml:space="preserve"><value>تم استلام الملف: {0}</value></data>
+ <data name="Banner_SendFile" xml:space="preserve"><value>إرسال ملف…</value></data>
+ <data name="Addr_Title" xml:space="preserve"><value>دفتر العناوين (معرّفات محفوظة، بدون كلمات مرور)</value></data>
+ <data name="Addr_Nickname" xml:space="preserve"><value>الاسم المستعار</value></data>
+ <data name="Addr_Save" xml:space="preserve"><value>حفظ</value></data>
+ <data name="Addr_Remove" xml:space="preserve"><value>إزالة</value></data>
+ <data name="Svc_Button" xml:space="preserve"><value>الوصول بدون مراقبة (خدمة ويندوز)…</value></data>
+ <data name="Svc_Managed" xml:space="preserve"><value>هذا الجهاز تديره خدمة RemoteTool. المعرّف: {0}. الوصول بدون مراقبة: {1}.</value></data>
+ <data name="Svc_On" xml:space="preserve"><value>مفعّل</value></data>
+ <data name="Svc_Off" xml:space="preserve"><value>معطّل</value></data>
+ <data name="Svc_Title" xml:space="preserve"><value>الوصول بدون مراقبة - إعداد الخدمة</value></data>
+ <data name="Svc_Warning" xml:space="preserve"><value>يتيح الوصول بدون مراقبة لمن يعرف كلمة المرور الدائمة التحكم بهذا الجهاز دون أن ينقر أحد على «سماح». تعمل الخدمة بصلاحيات SYSTEM وتعمل في شاشة تسجيل الدخول وعبر نوافذ UAC. فعّلها فقط على الأجهزة المقصودة بذلك (الخوادم، أجهزة الأكشاك، الأجهزة المُدارة من الدعم الفني).</value></data>
+ <data name="Svc_Status" xml:space="preserve"><value>الخدمة: {0}</value></data>
+ <data name="Svc_NotInstalled" xml:space="preserve"><value>غير مثبتة</value></data>
+ <data name="Svc_Running" xml:space="preserve"><value>تعمل</value></data>
+ <data name="Svc_Stopped" xml:space="preserve"><value>متوقفة</value></data>
+ <data name="Svc_Enable" xml:space="preserve"><value>تفعيل الوصول بدون مراقبة (المفتاح الرئيسي)</value></data>
+ <data name="Svc_Consent" xml:space="preserve"><value>اسأل المستخدم المسجّل دخوله قبل الاتصال (موصى به)</value></data>
+ <data name="Svc_Record" xml:space="preserve"><value>تسجيل الجلسات بدون مراقبة (مشفّر)</value></data>
+ <data name="Svc_Retention" xml:space="preserve"><value>مدة الاحتفاظ بالتسجيلات (أيام)</value></data>
+ <data name="Svc_Password" xml:space="preserve"><value>كلمة المرور الدائمة (اتركها فارغة للإبقاء على الحالية)</value></data>
+ <data name="Svc_Password2" xml:space="preserve"><value>أعد إدخال كلمة المرور الدائمة</value></data>
+ <data name="Svc_Apply" xml:space="preserve"><value>تثبيت / تطبيق</value></data>
+ <data name="Svc_Uninstall" xml:space="preserve"><value>إلغاء تثبيت الخدمة</value></data>
+ <data name="Svc_Purge" xml:space="preserve"><value>احذف أيضًا الإعدادات والسجلات والتسجيلات</value></data>
+ <data name="Svc_Done" xml:space="preserve"><value>تم. أُعيد تشغيل الخدمة.</value></data>
+ <data name="Svc_Mismatch" xml:space="preserve"><value>كلمتا المرور غير متطابقتين.</value></data>
+ <data name="Svc_Confirm_Uninstall" xml:space="preserve"><value>إزالة خدمة الوصول بدون مراقبة من هذا الجهاز؟</value></data>
+ <data name="Setting_H264" xml:space="preserve"><value>استخدام فيديو H.264 (بالعتاد إن توفر)؛ يعود تلقائيًا عند الفشل</value></data>
+ <data name="Setting_Language" xml:space="preserve"><value>اللغة (تُطبَّق عند التشغيل التالي)</value></data>
+ <data name="Lang_System" xml:space="preserve"><value>النظام</value></data>
+ <data name="Lang_En" xml:space="preserve"><value>English</value></data>
+ <data name="Lang_Ar" xml:space="preserve"><value>العربية</value></data>
+ <data name="Rec_Notice" xml:space="preserve"><value>ستُسجَّل هذه الجلسة.</value></data>
+ <data name="Viewer_Rec" xml:space="preserve"><value>● تسجيل - هذه الجلسة قيد التسجيل</value></data>
+ <data name="Viewer_CtrlAltDel" xml:space="preserve"><value>Ctrl+Alt+Del</value></data>
+ <data name="Connect_Unattended" xml:space="preserve"><value>استخدام كلمة المرور الدائمة (بدون مراقبة)</value></data>
+ <data name="Banner_Rec" xml:space="preserve"><value>● تسجيل</value></data>
+</root>

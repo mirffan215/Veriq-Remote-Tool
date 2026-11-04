@@ -351,3 +351,50 @@ public class WindowsServiceLogicTests
         Assert.Equal(new[] { "stop", "RemoteToolService" }, RemoteTool.Service.Windows.ScCommands.Stop());
     }
 }
+
+public class ServiceSetupArgsTests
+{
+    private static Func<string, string?> Env(params (string, string)[] kv) => n => kv.FirstOrDefault(x => x.Item1 == n).Item2;
+
+    [Fact]
+    public void ParsesAFullIntuneCommandLine_SecretsComeFromEnvironmentNotArguments()
+    {
+        var args = new[] { "--configure-service", "--relay", "relay1.corp:443,relay2.corp:443", "--relay-fp", "AABB", "--relay-key-env", "RT_KEY", "--password-env", "RT_PW", "--enable", "--record", "--retention-days", "14", "--name", "KIOSK-7" };
+        var (input, err) = RemoteTool.Service.ServiceSetupArgs.Parse(args, Env(("RT_KEY", "relay-secret"), ("RT_PW", "Correct-Horse-9")));
+        Assert.Null(err);
+        Assert.Equal("relay-secret", input!.RelayKey);
+        Assert.Equal("Correct-Horse-9", input.NewPermanentPassword);
+        Assert.True(input.Enabled); Assert.True(input.Record); Assert.True(input.ConsentWhenUserPresent);
+        Assert.Equal(14, input.RetentionDays); Assert.Equal("KIOSK-7", input.DisplayName);
+        Assert.DoesNotContain(args, a => a.Contains("Correct") || a.Contains("secret"));
+    }
+
+    [Theory]
+    [InlineData("--enable")]                                             // enabling without a permanent password
+    [InlineData("--relay", "not-a-valid-relay")]
+    [InlineData("--password-env", "MISSING")]
+    public void RejectsUnsafeOrIncompleteConfigurations(params string[] extra)
+    {
+        var (input, err) = RemoteTool.Service.ServiceSetupArgs.Parse(new[] { "--configure-service" }.Concat(extra).ToArray(), Env());
+        Assert.Null(input);
+        Assert.False(string.IsNullOrEmpty(err));
+    }
+
+    [Fact]
+    public void WeakPermanentPasswordIsRejectedBeforeAnythingIsInstalled()
+    {
+        var (input, err) = RemoteTool.Service.ServiceSetupArgs.Parse(new[] { "--password-env", "P" }, Env(("P", "short")));
+        Assert.Null(input);
+        Assert.Contains("rejected", err);
+    }
+
+    [Fact]
+    public void ConsentCanBeDisabledOnlyExplicitly()
+    {
+        var (input, _) = RemoteTool.Service.ServiceSetupArgs.Parse(new[] { "--no-user-consent" }, Env());
+        Assert.False(input!.ConsentWhenUserPresent);
+        var (def, _) = RemoteTool.Service.ServiceSetupArgs.Parse(Array.Empty<string>(), Env());
+        Assert.True(def!.ConsentWhenUserPresent);
+        Assert.False(def.Enabled);                                       // nothing is enabled unless asked for
+    }
+}

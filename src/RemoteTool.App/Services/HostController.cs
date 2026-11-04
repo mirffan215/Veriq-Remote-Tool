@@ -1,3 +1,4 @@
+using RemoteTool.Service;
 using System.Windows;
 using System.Windows.Threading;
 using RemoteTool.App.Windows;
@@ -33,7 +34,8 @@ public sealed class HostController : IAsyncDisposable
         _protector = protector;
         _audit = audit;
         Service = new HostService(
-            () => new ScreenFrameProducer(new GdiScreenGrabber()),
+            () => new RemoteTool.Video.H264FrameProducer(new GdiScreenGrabber(),
+                (int w, int h, int fps, int kbps, out string? err) => store.Current.EnableH264 ? RemoteTool.Video.H264Support.CreateEncoder(w, h, fps, kbps, out err) : NoEncoder(out err)),
             () => new WindowsInputInjector(),
             new UiConsent(ui),
             audit,
@@ -48,6 +50,11 @@ public sealed class HostController : IAsyncDisposable
         Service.SessionEnded += (_, _) => _ui.InvokeAsync(OnSessionEnded);
     }
 
+    private static RemoteTool.Video.IH264Encoder? NoEncoder(out string? err) { err = "H.264 disabled in settings"; return null; }
+
+    /// <summary>True when the Windows service owns this PC's identity (ID, relay registration, unattended access).</summary>
+    public bool ServiceManaged { get; private set; }
+
     private HostPolicy BuildPolicy()
     {
         var s = _store.Current;
@@ -61,6 +68,18 @@ public sealed class HostController : IAsyncDisposable
     {
         var s = _store.Current;
         Service.Policy = BuildPolicy();
+
+        // If the unattended-access service is running it already registers an ID with the relay; a second registration from this
+        // user-mode process would create a second, differently-protected way in. Step aside and let the UI show the service's ID.
+        ServiceManaged = ServiceStatus.IsRunning();
+        if (ServiceManaged)
+        {
+            if (Service.RelayStatus != RelayStatus.Disabled) _ = Service.StopRelayAsync();
+            if (Service.DirectListening) Service.StopDirectListener();
+            _relayKey = "";
+            RaiseChanged();
+            return;
+        }
 
         var key = string.IsNullOrEmpty(s.RelayAccessKeyProtected) ? "" : _protector.Unprotect(s.RelayAccessKeyProtected);
         var relayWanted = RelayEndpoint.TryParseList(s.RelayAddress, key, s.RelayFingerprint, out var relays);
