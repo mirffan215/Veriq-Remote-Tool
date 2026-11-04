@@ -14,6 +14,8 @@
     <Company>In-house IT</Company>
   </PropertyGroup>
   <ItemGroup>
+    <!-- The WPF SDK omits System.IO from implicit usings (Path clashes with System.Windows.Shapes.Path); this project never imports Shapes. -->
+    <Using Include="System.IO" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" />
     <ProjectReference Include="../RemoteTool.Core/RemoteTool.Core.csproj" />
     <ProjectReference Include="../RemoteTool.Capture/RemoteTool.Capture.csproj" />
