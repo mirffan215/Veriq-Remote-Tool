@@ -1,0 +1,8 @@
+bin/
+obj/
+publish/
+artifacts/
+*.pfx
+*.user
+.vs/
+TestResults/
