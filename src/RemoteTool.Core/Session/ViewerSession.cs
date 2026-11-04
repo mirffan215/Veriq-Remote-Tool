@@ -19,7 +19,13 @@ public sealed class ViewerSession : IAsyncDisposable
     private Task? _run;
     private int _ended;
 
+    private ClipboardSync? _clipboard;
+    private FileTransferService? _files;
+
     public string HostName { get; }
+    /// <summary>Single-use ticket for <see cref="ViewerReconnect"/>; changes with every (re)connect. Treat like a password.</summary>
+    public string ResumeToken { get; private set; } = "";
+    public byte ActiveMonitor { get; private set; }
     public Permissions Permissions { get; }
     public ScreenInfoMessage? Screen { get; private set; }
     public TimeSpan Latency => _pump.Latency;
@@ -30,6 +36,8 @@ public sealed class ViewerSession : IAsyncDisposable
     public event Action<FrameUpdateMessage>? FrameReceived;
     public event Action<CursorShape>? CursorChanged;
     public event Action<ByeReason, string>? Ended;
+    /// <summary>A file arrived from the host and passed its SHA-256 check (final path).</summary>
+    public event Action<string>? FileReceived;
 
     private ViewerSession(SecureChannel ch, FrameReader r, FrameWriter w, string hostName, Permissions perms, IAuditLog audit)
     {
@@ -46,7 +54,7 @@ public sealed class ViewerSession : IAsyncDisposable
     /// Runs TLS + password handshake + consent over an already-connected transport (direct TCP or relay splice).
     /// </summary>
     public static async Task<ViewerSession> ConnectAsync(Stream transport, string viewerName, string password, IAuditLog audit,
-        Permissions requested, CancellationToken ct)
+        Permissions requested, CancellationToken ct, bool resume = false)
     {
         using var cert = EphemeralCertificate.Create("RemoteTool viewer");
         SecureChannel ch;
@@ -70,7 +78,7 @@ public sealed class ViewerSession : IAsyncDisposable
             hs.CancelAfter(ProtocolConstants.HandshakeTimeout);
 
             var nonceV = RandomNumberGenerator.GetBytes(ProtocolConstants.NonceLength);
-            await writer.WriteAsync(MessageType.Hello, new HelloMessage(ProtocolConstants.Version, NameSanitizer.Clean(viewerName, "viewer"), nonceV).Serialize(), hs.Token).ConfigureAwait(false);
+            await writer.WriteAsync(MessageType.Hello, new HelloMessage(ProtocolConstants.Version, NameSanitizer.Clean(viewerName, "viewer"), nonceV, resume).Serialize(), hs.Token).ConfigureAwait(false);
 
             var challenge = AuthChallengeMessage.Parse(await Expect(reader, MessageType.AuthChallenge, hs.Token).ConfigureAwait(false));
             var key = await Task.Run(() => PasswordHandshake.DeriveKey(password, challenge.Salt), hs.Token).ConfigureAwait(false);
@@ -92,6 +100,7 @@ public sealed class ViewerSession : IAsyncDisposable
             if (!consent.Granted) throw new ConnectFailedException(ConnectFailure.Denied, "The remote user denied the connection.");
 
             var s = new ViewerSession(ch, reader, writer, challenge.HostName, consent.GrantedPermissions, audit);
+            s.ResumeToken = consent.ResumeToken is { Length: > 0 } t ? System.Text.Encoding.ASCII.GetString(t) : "";
             audit.Write("session_start", ("session", s._id), ("host", s.HostName), ("permissions", consent.GrantedPermissions));
             return s; // caller subscribes to events, then calls Start() so the first keyframe cannot be missed
         }
@@ -140,12 +149,13 @@ public sealed class ViewerSession : IAsyncDisposable
         return f.Payload;
     }
 
-    private ValueTask OnFrameAsync(Frame f)
+    private async ValueTask OnFrameAsync(Frame f)
     {
         switch ((MessageType)f.Type)
         {
             case MessageType.ScreenInfo:
                 Screen = ScreenInfoMessage.Parse(f.Payload);
+                ActiveMonitor = Screen.ActiveMonitor;
                 ScreenInfoReceived?.Invoke(Screen);
                 break;
             case MessageType.FrameUpdate:
@@ -154,13 +164,42 @@ public sealed class ViewerSession : IAsyncDisposable
             case MessageType.CursorUpdate:
                 CursorChanged?.Invoke(CursorUpdateMessage.Parse(f.Payload).Shape);
                 break;
-            case MessageType.ClipboardData or MessageType.FileOffer or MessageType.FileChunk or MessageType.FileAck:
-                break; // Phase 2
+            case MessageType.ClipboardData:
+                ClipboardDataMessage.Parse(f.Payload);
+                _clipboard?.Receive(f.Payload);
+                break;
+            case MessageType.FileOffer or MessageType.FileChunk or MessageType.FileAck:
+                if (_files is not null) await _files.HandleAsync(f, _cts.Token).ConfigureAwait(false);
+                else if (f.Type == (byte)MessageType.FileOffer)
+                    await _writer.WriteAsync(MessageType.FileAck, new FileAckMessage(FileOfferMessage.Parse(f.Payload).TransferId, FileStatus.Reject, 0).Serialize(), _cts.Token).ConfigureAwait(false);
+                break;
             default:
                 throw new ProtocolException($"unexpected {(MessageType)f.Type} from host");
         }
-        return ValueTask.CompletedTask;
     }
+
+    /// <summary>Enable clipboard sync (needs the Clipboard permission). Call before <see cref="Start"/>.</summary>
+    public void AttachClipboard(IClipboardAccess clipboard)
+    {
+        if ((Permissions & Permissions.Clipboard) == 0) { clipboard.Dispose(); return; }
+        _clipboard = new ClipboardSync(clipboard, p => _writer.WriteAsync(MessageType.ClipboardData, p, _cts.Token), _audit);
+        _clipboard.Start();
+    }
+
+    /// <summary>Enable file transfer in both directions (needs the FileTransfer permission). Call before <see cref="Start"/>.</summary>
+    public void AttachFileTransfer(IFileTransferPrompt prompt, FileTransferOptions options)
+    {
+        if ((Permissions & Permissions.FileTransfer) == 0) return;
+        _files = new FileTransferService(_writer, prompt, options, _audit, HostName);
+        _files.FileReceived += p => FileReceived?.Invoke(p);
+    }
+
+    public bool CanTransferFiles => _files is not null;
+
+    public Task<FileSendOutcome> SendFileAsync(string path, IProgress<long>? progress = null, CancellationToken ct = default)
+        => _files is { } f ? f.SendAsync(path, progress, ct) : Task.FromResult(FileSendOutcome.Failed);
+
+    public Task SelectMonitorAsync(byte index) => SafeSend(MessageType.MonitorSelect, new MonitorSelectMessage(index).Serialize());
 
     private async Task RunAsync()
     {
@@ -182,6 +221,7 @@ public sealed class ViewerSession : IAsyncDisposable
         if (Interlocked.Exchange(ref _ended, 1) == 1) return;
         _audit.Write("session_end", ("session", _id), ("reason", reason), ("durationSeconds", (int)(DateTimeOffset.UtcNow - _started).TotalSeconds),
             ("bytesIn", BytesReceived), ("bytesOut", BytesSent));
+        try { _files?.Dispose(); _clipboard?.Dispose(); } catch { }
         try { _channel.Stream.Dispose(); } catch { }
         Ended?.Invoke(reason, text);
     }

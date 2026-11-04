@@ -125,6 +125,7 @@ public class EndToEndTests
         var ended = new TaskCompletionSource<ByeReason>();
         v.Ended += (r, _) => ended.TrySetResult(r);
         v.Start();
+        await WaitFor(() => rig.Host.ActiveSession is not null); // the UI hotkey/button only exists after SessionStarted
         rig.Host.DisconnectActive(ByeReason.Emergency);
         Assert.Equal(ByeReason.Emergency, await ended.Task.WaitAsync(TimeSpan.FromSeconds(10)));
     }

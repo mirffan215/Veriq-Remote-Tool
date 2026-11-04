@@ -34,7 +34,8 @@ public sealed record RelayRegistrationOptions(
 /// </summary>
 public sealed class RelayRegistration : IAsyncDisposable
 {
-    private readonly RelayEndpoint _ep;
+    private readonly IReadOnlyList<RelayEndpoint> _eps;
+    private int _epIndex;
     private readonly IIdProvider _ids;
     private readonly Func<Stream, string, CancellationToken, Task> _onIncoming;
     private readonly IAuditLog _audit;
@@ -45,8 +46,11 @@ public sealed class RelayRegistration : IAsyncDisposable
     private RelayStatus _status = RelayStatus.Disabled;
 
     public RelayRegistration(RelayEndpoint ep, IIdProvider ids, Func<Stream, string, CancellationToken, Task> onIncoming, IAuditLog audit, RelayRegistrationOptions? opt = null)
+        : this(new[] { ep }, ids, onIncoming, audit, opt) { }
+
+    public RelayRegistration(IReadOnlyList<RelayEndpoint> eps, IIdProvider ids, Func<Stream, string, CancellationToken, Task> onIncoming, IAuditLog audit, RelayRegistrationOptions? opt = null)
     {
-        _ep = ep;
+        _eps = eps;
         _ids = ids;
         _onIncoming = onIncoming;
         _audit = audit;
@@ -104,7 +108,9 @@ public sealed class RelayRegistration : IAsyncDisposable
             catch (Exception e) when (e is IOException or System.Net.Sockets.SocketException or ProtocolException or EndOfStreamException
                                            or System.Security.Authentication.AuthenticationException or TimeoutException or OperationCanceledException)
             {
-                _audit.Write("relay_connection_lost", ("error", e.GetType().Name));
+                _audit.Write("relay_connection_lost", ("error", e.GetType().Name), ("relayIndex", _epIndex));
+                // Never registered on this relay => try the next one (failover). A drop after a successful registration retries the same relay first.
+                if (!_registeredThisRound && _eps.Count > 1) _epIndex = (_epIndex + 1) % _eps.Count;
             }
             SetStatus(RelayStatus.Offline);
             try { await Task.Delay(backoff, ct).ConfigureAwait(false); } catch (OperationCanceledException) { return; }
@@ -114,13 +120,17 @@ public sealed class RelayRegistration : IAsyncDisposable
 
     private enum Outcome { Disconnected, IdTaken, Denied }
 
+    private bool _registeredThisRound;
+
     private async Task<Outcome> RunControlConnectionAsync(CancellationToken ct, Action onRegistered)
     {
-        await using var s = await RelayClient.OpenAsync(_ep, ct).ConfigureAwait(false);
+        _registeredThisRound = false;
+        var ep = _eps[_epIndex];
+        await using var s = await RelayClient.OpenAsync(ep, ct).ConfigureAwait(false);
         var w = new FrameWriter(s);
         var r = new FrameReader(s, MessageTypes.IsKnownRelay, RelayLimits.MaxControlPayload);
         var id = _ids.Id;
-        await w.WriteAsync(RelayMessageType.Register, new RegisterMessage(_ep.AccessKey, id, _instanceId).Serialize(), ct).ConfigureAwait(false);
+        await w.WriteAsync(RelayMessageType.Register, new RegisterMessage(ep.AccessKey, id, _instanceId).Serialize(), ct).ConfigureAwait(false);
 
         var first = await ReadWithTimeout(r, TimeSpan.FromSeconds(15), ct).ConfigureAwait(false);
         switch ((RelayMessageType)first.Type)
@@ -130,6 +140,7 @@ public sealed class RelayRegistration : IAsyncDisposable
             case RelayMessageType.Denied: return Outcome.Denied;
             default: throw new ProtocolException("unexpected relay reply");
         }
+        _registeredThisRound = true;
         onRegistered();
         SetStatus(RelayStatus.Online);
         _audit.Write("relay_registered");
@@ -145,7 +156,7 @@ public sealed class RelayRegistration : IAsyncDisposable
                     break;
                 case RelayMessageType.Incoming:
                     var inc = IncomingMessage.Parse(f.Payload);
-                    _ = Task.Run(() => HandleIncomingAsync(id, inc, _cts.Token), _cts.Token);
+                    _ = Task.Run(() => HandleIncomingAsync(ep, id, inc, _cts.Token), _cts.Token);
                     break;
                 default:
                     throw new ProtocolException("unexpected relay message");
@@ -161,15 +172,15 @@ public sealed class RelayRegistration : IAsyncDisposable
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new TimeoutException("relay silent"); }
     }
 
-    private async Task HandleIncomingAsync(string id, IncomingMessage inc, CancellationToken ct)
+    private async Task HandleIncomingAsync(RelayEndpoint ep, string id, IncomingMessage inc, CancellationToken ct)
     {
         Stream? data = null;
         try
         {
-            data = await RelayClient.OpenAsync(_ep, ct).ConfigureAwait(false);
+            data = await RelayClient.OpenAsync(ep, ct).ConfigureAwait(false);
             var w = new FrameWriter(data);
             var r = new FrameReader(data, MessageTypes.IsKnownRelay, RelayLimits.MaxControlPayload);
-            await w.WriteAsync(RelayMessageType.Accept, new AcceptMessage(_ep.AccessKey, id, inc.Token).Serialize(), ct).ConfigureAwait(false);
+            await w.WriteAsync(RelayMessageType.Accept, new AcceptMessage(ep.AccessKey, id, inc.Token).Serialize(), ct).ConfigureAwait(false);
             var ready = await ReadWithTimeout(r, TimeSpan.FromSeconds(20), ct).ConfigureAwait(false);
             if (ready.Type != (byte)RelayMessageType.Ready) return;
             var stream = data;

@@ -1,4 +1,6 @@
-# RemoteTool wire protocol (version 1)
+# RemoteTool wire protocol (version 2)
+
+v2 (Phase 2) adds `Hello.resume`, `ConsentResult.resumeToken`, `MonitorSelect`, and the clipboard / file messages. v1 and v2 peers refuse each other (`VersionMismatch`).
 
 Keep in sync with `src/RemoteTool.Core/Protocol`. All integers are big-endian.
 
@@ -32,25 +34,39 @@ viewer ══ TLS 1.3 (mutual, ephemeral certs) ═══ end-to-end ═══ h
 
 | Type | Name | Direction | Payload |
 |---|---|---|---|
-| 1 | Hello | V→H | `u16 version`, `str viewerName(≤64)`, `32B nonceV` |
+| 1 | Hello | V→H | `u16 version`, `str viewerName(≤64)`, `32B nonceV`, `bool resume` |
 | 2 | AuthChallenge | H→V | `str hostName`, `32B nonceH`, `16B salt` |
 | 3 | AuthResponse | V→H | `32B viewerProof` |
 | 4 | AuthResult | H→V | `bool ok`, `u8 failure`, `32B hostProof` (zeros on failure) |
 | 5 | ConsentRequest | V→H | `u8 requestedPermissions` |
-| 6 | ConsentResult | H→V | `bool granted`, `u8 grantedPermissions`, `u8 denyReason` |
+| 6 | ConsentResult | H→V | `bool granted`, `u8 grantedPermissions`, `u8 denyReason`, `bytes resumeToken(≤64, ASCII hex; empty if denied)` |
 | 7 | ScreenInfo | H→V | `u8 n`, `u8 activeMonitor`, n × (`u8 idx, i32 x,y,w,h, bool primary, str name`) |
 | 8 | FrameUpdate | H→V | `u8 monitor, u32 seq, u16 w, u16 h, bool keyframe, u16 nRects`, nRects × (`u16 x,y,w,h`, `bytes jpeg`) |
 | 9 | CursorUpdate | H→V | `u8 shape` |
 | 10 | MouseEvent | V→H | `u8 kind(move/down/up/wheel/hwheel), u8 button, u16 x, u16 y (0..65535 of monitor), i32 wheelDelta` |
 | 11 | KeyEvent | V→H | `u16 virtualKey(1..254), u8 flags(1=up, 2=extended)` |
-| 12 | ClipboardData | both | *Phase 2* |
-| 13–15 | FileOffer / FileChunk / FileAck | both | *Phase 2* |
+| 12 | ClipboardData | both | `u8 format(0 = UTF-8 text)`, `bytes text(≤1 MiB)`; newlines allowed, strict UTF-8 |
+| 13 | FileOffer | sender→receiver | `u32 id`, `str name(≤255)`, `u64 size`, `32B sha256` |
+| 14 | FileChunk | sender→receiver | `u32 id`, `u64 offset`, `bytes data(≤256 KiB, 64 KiB used)` |
+| 15 | FileAck | receiver→sender (and sender→receiver for Cancel) | `u32 id`, `u8 status(0 accept,1 reject,2 complete,3 hash mismatch,4 error,5 cancel)`, `u64 received` |
 | 16 | Ping | both | `u64 senderTickMs` |
 | 17 | Pong | both | echo of the Ping payload (RTT) |
 | 18 | Bye | both | `u8 reason`, `str text(≤128)` |
+| 19 | MonitorSelect | V→H | `u8 monitorIndex`; host replies with a new `ScreenInfo` and a keyframe of that monitor |
 
 Permissions bits: 1 Control, 2 Clipboard, 4 FileTransfer. Message direction is enforced: e.g. a viewer sending `FrameUpdate` is a protocol error.
 Frame rects must lie inside `w×h`; ≤4096 rects; ≤8 MiB per JPEG.
+
+### File transfer
+`FileOffer` (hash known up-front) → receiver asks its user (60 s, default *No*) → `FileAck(accept|reject|error)` → sequential `FileChunk`s (offset must equal bytes received) → receiver verifies SHA-256 →
+`FileAck(complete | hashMismatch)`. Receiver writes `<name>.part` in the *RemoteTool Received* folder and renames only after verification; the name is sanitized to a single component and the file gets a
+`Zone.Identifier` (ZoneId=3). One incoming and one outgoing transfer at a time; default cap 1 GiB; a disconnect deletes the partial file. The offer is handled off the read loop so heartbeats keep flowing while the user decides.
+
+### Resume after a network drop
+After consent the host returns a random 192-bit `resumeToken` (valid for the live session). If the session ends *abnormally* (timeout / protocol error) the token stays valid for 2 minutes; a normal
+disconnect, a host-initiated disconnect or a lockout invalidates it. To resume, the viewer opens a new connection and sends `Hello.resume = true`; §4 runs with the token as the shared secret instead of the one-time
+password. On success the host skips the consent dialog (permissions = previous grant ∩ current policy), retires any half-dead old session, and returns a **new** token. The token is single-use, comparisons are constant-time,
+failures count toward the same lockout.
 
 Heartbeat: both sides send `Ping` every 5 s; no inbound frame for 15 s ⇒ session torn down (`ByeReason.Timeout`).
 
@@ -89,6 +105,8 @@ Failure codes: 1 BadPassword, 2 Blocked, 3 Busy, 4 VersionMismatch, 5 NotAllowed
 | 0x87 | Ready | – | pairing done: from here on the connection is a raw byte pipe |
 | 0x88 | NotFound | – | **single generic answer** for unknown ID, offline host, bad key, throttled source, relay full |
 | 0x89/0x8A | RelayPing / RelayPong | – | liveness (relay pings every 10 s, drops after 30 s of silence) |
+
+Clients may be configured with several relays: a host registers with the first reachable one (moving on after connect failures); a viewer tries them in order until one answers `Ready`.
 
 After `Ready` the relay sends no more frames on either leg; it only copies bytes (16 KiB buffers) until either side closes or 90 s pass without traffic.
 `instanceId` is random per host *process*: same ID + same instanceId = reconnect of the same process (replaces the stale registration);

@@ -8,7 +8,10 @@ namespace RemoteTool.Core.Config;
 public sealed record StoragePaths(string SettingsDirectory, string LogDirectory, bool Portable)
 {
     public string SettingsFile => Path.Combine(SettingsDirectory, "settings.json");
-    public string ReceivedFilesDirectory => Path.Combine(SettingsDirectory, "RemoteTool Received");
+    /// <summary>Dedicated folder for received files: next to the exe in portable mode, otherwise under Documents (easy for users to find).</summary>
+    public string ReceivedFilesDirectory => Portable
+        ? Path.Combine(SettingsDirectory, "RemoteTool Received")
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "RemoteTool Received");
 
     public static StoragePaths Detect(string exeDirectory)
     {

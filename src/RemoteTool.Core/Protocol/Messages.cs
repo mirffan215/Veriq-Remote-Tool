@@ -39,14 +39,15 @@ public enum CursorShape : byte
 public enum MouseKind : byte { Move = 0, Down = 1, Up = 2, Wheel = 3, HWheel = 4 }
 public enum MouseButton : byte { None = 0, Left = 1, Right = 2, Middle = 3, X1 = 4, X2 = 5 }
 
-public sealed record HelloMessage(ushort Version, string ViewerName, byte[] Nonce)
+/// <param name="Resume">True when the shared secret is a resume ticket (reconnect after a network drop) instead of the one-time password.</param>
+public sealed record HelloMessage(ushort Version, string ViewerName, byte[] Nonce, bool Resume = false)
 {
-    public byte[] Serialize() => new ProtoWriter().U16(Version).Str(ViewerName).Fixed(Nonce).ToArray();
+    public byte[] Serialize() => new ProtoWriter().U16(Version).Str(ViewerName).Fixed(Nonce).Bool(Resume).ToArray();
 
     public static HelloMessage Parse(byte[] p)
     {
         var r = new ProtoReader(p);
-        var m = new HelloMessage(r.U16(), r.Str(ProtocolConstants.MaxNameChars), r.Fixed(ProtocolConstants.NonceLength));
+        var m = new HelloMessage(r.U16(), r.Str(ProtocolConstants.MaxNameChars), r.Fixed(ProtocolConstants.NonceLength), r.Bool());
         r.EnsureEnd();
         return m;
     }
@@ -113,9 +114,10 @@ public sealed record ConsentRequestMessage(Permissions Requested)
     }
 }
 
-public sealed record ConsentResultMessage(bool Granted, Permissions GrantedPermissions, ByeReason DenyReason)
+/// <param name="ResumeToken">High-entropy single-use ticket (ASCII hex) the viewer can use to resume after a network drop; empty when denied.</param>
+public sealed record ConsentResultMessage(bool Granted, Permissions GrantedPermissions, ByeReason DenyReason, byte[]? ResumeToken = null)
 {
-    public byte[] Serialize() => new ProtoWriter().Bool(Granted).U8((byte)GrantedPermissions).U8((byte)DenyReason).ToArray();
+    public byte[] Serialize() => new ProtoWriter().Bool(Granted).U8((byte)GrantedPermissions).U8((byte)DenyReason).Bytes(ResumeToken ?? Array.Empty<byte>()).ToArray();
 
     public static ConsentResultMessage Parse(byte[] p)
     {
@@ -124,8 +126,9 @@ public sealed record ConsentResultMessage(bool Granted, Permissions GrantedPermi
         var perms = ConsentRequestMessage.ParsePermissions(r.U8());
         var reason = r.U8();
         if (reason > (byte)ByeReason.Emergency) throw new ProtocolException("invalid reason");
+        var token = r.Bytes(64);
         r.EnsureEnd();
-        return new ConsentResultMessage(g, perms, (ByeReason)reason);
+        return new ConsentResultMessage(g, perms, (ByeReason)reason, token);
     }
 }
 
@@ -264,6 +267,87 @@ public sealed record ByeMessage(ByeReason Reason, string Text)
         var reason = r.U8();
         if (reason > (byte)ByeReason.Emergency) throw new ProtocolException("invalid bye reason");
         var m = new ByeMessage((ByeReason)reason, r.Str(128));
+        r.EnsureEnd();
+        return m;
+    }
+}
+
+public sealed record MonitorSelectMessage(byte Index)
+{
+    public byte[] Serialize() => new ProtoWriter().U8(Index).ToArray();
+
+    public static MonitorSelectMessage Parse(byte[] p)
+    {
+        var r = new ProtoReader(p);
+        var m = new MonitorSelectMessage(r.U8());
+        r.EnsureEnd();
+        if (m.Index >= ProtocolConstants.MaxMonitors) throw new ProtocolException("invalid monitor");
+        return m;
+    }
+}
+
+/// <summary>Plain UTF-8 text (the only clipboard format in v1). Newlines/tabs allowed, size capped.</summary>
+public sealed record ClipboardDataMessage(string Text)
+{
+    private static readonly System.Text.UTF8Encoding Utf8 = new(false, true);
+
+    public byte[] Serialize()
+    {
+        var bytes = Utf8.GetBytes(Text);
+        if (bytes.Length > ProtocolConstants.MaxClipboardBytes) throw new ProtocolException("clipboard too large");
+        return new ProtoWriter().U8(0).Bytes(bytes).ToArray();
+    }
+
+    public static ClipboardDataMessage Parse(byte[] p)
+    {
+        var r = new ProtoReader(p);
+        if (r.U8() != 0) throw new ProtocolException("unsupported clipboard format");
+        var raw = r.Bytes(ProtocolConstants.MaxClipboardBytes);
+        r.EnsureEnd();
+        try { return new ClipboardDataMessage(Utf8.GetString(raw)); }
+        catch (System.Text.DecoderFallbackException e) { throw new ProtocolException("invalid UTF-8", e); }
+    }
+}
+
+public enum FileStatus : byte { Accept = 0, Reject = 1, Complete = 2, HashMismatch = 3, Error = 4, Cancel = 5 }
+
+public sealed record FileOfferMessage(uint TransferId, string Name, ulong Size, byte[] Sha256)
+{
+    public byte[] Serialize() => new ProtoWriter().U32(TransferId).Str(Name).U64(Size).Fixed(Sha256).ToArray();
+
+    public static FileOfferMessage Parse(byte[] p)
+    {
+        var r = new ProtoReader(p);
+        var m = new FileOfferMessage(r.U32(), r.Str(ProtocolConstants.MaxFileNameChars), r.U64(), r.Fixed(32));
+        r.EnsureEnd();
+        return m;
+    }
+}
+
+public sealed record FileChunkMessage(uint TransferId, ulong Offset, byte[] Data)
+{
+    public byte[] Serialize() => new ProtoWriter().U32(TransferId).U64(Offset).Bytes(Data).ToArray();
+
+    public static FileChunkMessage Parse(byte[] p)
+    {
+        var r = new ProtoReader(p);
+        var m = new FileChunkMessage(r.U32(), r.U64(), r.Bytes(ProtocolConstants.MaxFileChunk));
+        r.EnsureEnd();
+        return m;
+    }
+}
+
+public sealed record FileAckMessage(uint TransferId, FileStatus Status, ulong Received)
+{
+    public byte[] Serialize() => new ProtoWriter().U32(TransferId).U8((byte)Status).U64(Received).ToArray();
+
+    public static FileAckMessage Parse(byte[] p)
+    {
+        var r = new ProtoReader(p);
+        var id = r.U32();
+        var st = r.U8();
+        if (st > (byte)FileStatus.Cancel) throw new ProtocolException("invalid file status");
+        var m = new FileAckMessage(id, (FileStatus)st, r.U64());
         r.EnsureEnd();
         return m;
     }

@@ -46,6 +46,32 @@ public partial class MainWindow : Window
         ThemeLight.IsChecked = s.Theme == "Light";
         ThemeDark.IsChecked = s.Theme == "Dark";
         RefreshRecent();
+        RefreshAddresses();
+    }
+
+    private sealed record AddrItem(string Target, string Nickname, string Label) { public override string ToString() => Label; }
+
+    private void RefreshAddresses() => AddressList.ItemsSource = _store.Current.AddressBook
+        .Select(a => new AddrItem(a.Target, a.Nickname, a.Nickname.Length > 0 ? $"{a.Nickname}  -  {a.Target}" : a.Target)).ToList();
+
+    private void Address_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (AddressList.SelectedItem is not AddrItem i) return;
+        TargetBox.Text = i.Target;
+        NicknameBox.Text = i.Nickname;
+        ConnectPasswordBox.Focus();
+    }
+
+    private void AddrSave_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ConnectTarget.TryParse(TargetBox.Text, out var t)) { ConnectStatus.Text = Loc.T("Err_BadTarget"); return; }
+        _store.UpsertAddress(t is ConnectTarget.ById b ? ConnectionId.Format(b.Id) : TargetBox.Text.Trim(), NicknameBox.Text);
+        RefreshAddresses();
+    }
+
+    private void AddrRemove_Click(object sender, RoutedEventArgs e)
+    {
+        if (AddressList.SelectedItem is AddrItem i && _store.RemoveAddress(i.Target)) RefreshAddresses();
     }
 
     private void RefreshRecent() => RecentList.ItemsSource = _store.Current.Recent.Select(r => r.Target).ToList();
@@ -91,7 +117,7 @@ public partial class MainWindow : Window
         var s = _store.Current;
         if (!int.TryParse(DirectPortBox.Text, out var port) || port is < 1 or > 65535) { SettingsStatus.Text = Loc.T("Err_Port"); return; }
         var relay = RelayAddressBox.Text.Trim();
-        if (relay.Length > 0 && !RelayEndpoint.TryParse(relay, "", "", out _)) { SettingsStatus.Text = Loc.T("Err_Relay"); return; }
+        if (relay.Length > 0 && !RelayEndpoint.TryParseList(relay, "", "", out _)) { SettingsStatus.Text = Loc.T("Err_Relay"); return; }
 
         var portChanged = port != s.DirectPort;
         s.DisplayName = NameSanitizer.Clean(DisplayNameBox.Text, Environment.MachineName);
@@ -129,11 +155,11 @@ public partial class MainWindow : Window
         _connectCts = new CancellationTokenSource();
         try
         {
-            var session = await _viewer.ConnectAsync(target!, password, _connectCts.Token);
+            var (session, ctx) = await _viewer.ConnectAsync(target!, password, _connectCts.Token);
             _store.AddRecent(target is ConnectTarget.ById b ? ConnectionId.Format(b.Id) : TargetBox.Text.Trim());
             RefreshRecent();
             ConnectStatus.Text = "";
-            new ViewerWindow(session).Show();
+            new ViewerWindow(session, ctx).Show();
         }
         catch (ConnectFailedException ex) { ConnectStatus.Text = Loc.F("Err_Failed", ex.Message); }
         catch (OperationCanceledException) { ConnectStatus.Text = ""; }

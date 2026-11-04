@@ -7,7 +7,7 @@ Format: ID — decision — reason / alternatives. Newest at the bottom of each 
 **D-01 Standalone project.** RemoteTool lives in its own folder/repo. It is unrelated to the VPMS or Facility-Management repositories
 that happen to be mounted next to it in the build sandbox; none of their files or branch rules were touched.
 
-**D-02 TLS 1.3 only ⇒ minimum OS is Windows 11 / Server 2022 (OPEN ISSUE, needs your call).**
+**D-02 TLS 1.3 only ⇒ minimum OS is Windows 11 / Server 2022 (CONFIRMED by owner for Phase 2: Windows 11 only).**
 The brief asks for TLS 1.3 only *and* Windows 10 / Server 2019+. Microsoft's SChannel does not implement TLS 1.3 on Windows 10 or
 Server 2019 (it arrived with Windows 11 / Server 2022), and .NET's `SslStream` uses SChannel on Windows. Per rule "never weaken a
 security requirement", the code **refuses anything below TLS 1.3** (`SslProtocols.Tls13`, verified after the handshake). Consequence:
@@ -61,3 +61,31 @@ Phase 3 and opt-in. The IP allow-list (Mode A) is implemented now.
 **D-15 Build/verification limits of the authoring sandbox.** Core, Relay, Capture, Input are built and tested on Linux. The WPF project (`RemoteTool.App`) could **not** be compiled there
 (the sandbox SDK has no Windows Desktop workload and its network policy blocks the official SDK download). It is therefore *unverified by a compiler*; `.github/workflows/ci.yml` builds it on `windows-latest`.
 First action on a Windows machine: `scripts/publish-app.ps1` and fix any compile errors.
+
+## Phase 2
+
+**D-16 Windows 11 only.** Owner confirmed (D-02): no managed-TLS fallback will be built. Windows 10 / Server 2019 are unsupported.
+
+**D-17 Session resume instead of "re-enter password".** Passwords are single-use (D-10), so a reconnect needs a different credential. The host issues a 192-bit random, single-use *resume ticket* inside the
+encrypted consent reply; it survives only abnormal ends, for 2 minutes. Resuming reuses the same channel-bound proof (D-04) with the ticket as secret, so there is no new weaker path. No consent dialog on resume
+because the same authenticated viewer/host pair already consented; permissions can only shrink (policy re-applied). A viewer that has the ticket *is* the previously consented viewer; a stolen ticket is useless without
+also being able to complete the channel-bound handshake within 2 minutes, and it dies on first use or on a deliberate disconnect.
+
+**D-18 Transfers are receiver-controlled and hash-first.** Sender hashes before offering so the receiver can verify before the file becomes visible. Every incoming file needs a per-transfer confirmation (default No),
+1 GiB cap (`MaxFileTransferMb` in settings.json), sanitized names (traversal, ADS, reserved device names, bidi/format characters, length), `.part` + atomic rename, Mark-of-the-Web, cleanup on disconnect.
+Offers are processed off the read loop; otherwise a user pondering the dialog would stop heartbeats and the peer would time out.
+Received files go to `Documents\RemoteTool Received` (portable mode: `data\RemoteTool Received`).
+
+**D-19 Clipboard = plain text only, 1 MiB cap, echo-suppressed, permission-gated.** Files go through the file-transfer path (the brief's "files via file transfer"). Content is never logged; only direction and size.
+Both host policy *and* the host user's consent checkbox can switch it off.
+
+**D-20 Adaptive quality.** `AdaptiveQuality` reacts to how long the socket takes to accept a frame: quality 85→40 first, then frame rate 25→5 FPS; recovery in reverse. Pure logic, unit-tested; real-link tuning is Phase 3.
+
+**D-21 Multi-monitor.** Viewer sends `MonitorSelect`; host switches the capture source, forces a keyframe and re-announces `ScreenInfo`; mouse mapping uses the active monitor. Hot-plug changes mid-session are not handled yet (reconnect).
+
+**D-22 Relay failover is client-side.** Relays are independent (no shared state, by design: IDs live only in memory). A host registers on the first reachable relay and fails over on connect failures; viewers try every
+configured relay until one pairs them (a "not found" from one relay is not final). Clients accept several comma-separated addresses and several pinned fingerprints. Graceful shutdown: relay drops registrations on stop and Kestrel drains for 20 s.
+
+**D-23 Address book** stores target + nickname only (never passwords). Recent connections remain separate.
+
+**D-24 WPF additions remain compiler-unverified** (see D-15). XAML well-formedness, resource keys and event-handler names are checked by script; the C# is syntax-checked.

@@ -32,9 +32,30 @@ public sealed partial class HostService : IAsyncDisposable
     private CancellationTokenSource? _activeCts;
     private ByeReason _activeEndReason = ByeReason.HostDisconnected;
 
-    public HostService(Func<IFrameProducer> producerFactory, Func<IInputInjector> injectorFactory, IConsentProvider consent,
-        IAuditLog audit, HostPolicy policy, AuthLockout? lockout = null)
+    private readonly Func<IClipboardAccess>? _clipboardFactory;
+    private readonly IFileTransferPrompt? _filePrompt;
+    private readonly string _receiveDirectory;
+    private readonly TimeProvider _time;
+    private ResumeTicket? _ticket;
+
+    /// <summary>Single-use credential letting the same viewer resume after a network drop without a new password/consent dialog.</summary>
+    private sealed class ResumeTicket
     {
+        public required string Secret { get; init; }
+        public required Permissions Permissions { get; init; }
+        public required string ViewerName { get; init; }
+        public DateTimeOffset? ExpiresAt; // null while the session is alive
+    }
+
+    public HostService(Func<IFrameProducer> producerFactory, Func<IInputInjector> injectorFactory, IConsentProvider consent,
+        IAuditLog audit, HostPolicy policy, AuthLockout? lockout = null,
+        Func<IClipboardAccess>? clipboardFactory = null, IFileTransferPrompt? filePrompt = null, string? receiveDirectory = null,
+        TimeProvider? time = null)
+    {
+        _clipboardFactory = clipboardFactory;
+        _filePrompt = filePrompt;
+        _receiveDirectory = receiveDirectory ?? Path.Combine(Path.GetTempPath(), "RemoteTool Received");
+        _time = time ?? TimeProvider.System;
         _producerFactory = producerFactory;
         _injectorFactory = injectorFactory;
         _consent = consent;
@@ -67,6 +88,10 @@ public sealed partial class HostService : IAsyncDisposable
         _activeEndReason = reason;
         try { _activeCts?.Cancel(); } catch (ObjectDisposedException) { }
     }
+
+    /// <summary>Sends a file to the viewer of the active session (needs FileTransfer permission and a prompt-capable peer).</summary>
+    public Task<FileSendOutcome> SendFileAsync(string path, IProgress<long>? progress = null, CancellationToken ct = default)
+        => _activeFiles is { } f ? f.SendAsync(path, progress, ct) : Task.FromResult(FileSendOutcome.Failed);
 
     private bool IpAllowed(IPAddress? ip)
     {
@@ -118,7 +143,15 @@ public sealed partial class HostService : IAsyncDisposable
             var auth = await AuthenticateAsync(ch, reader, writer, origin, token).ConfigureAwait(false);
             if (auth is null) return;
 
-            if (!_sessionGate.Wait(0))
+            var gotGate = _sessionGate.Wait(0);
+            if (!gotGate && auth.Resumed is not null)
+            {
+                // Same viewer coming back before we noticed the old connection died: retire the stale session first.
+                _activeEndReason = ByeReason.Timeout;
+                try { _activeCts?.Cancel(); } catch (ObjectDisposedException) { }
+                gotGate = await _sessionGate.WaitAsync(TimeSpan.FromSeconds(8), token).ConfigureAwait(false);
+            }
+            if (!gotGate)
             {
                 await writer.WriteAsync(MessageType.AuthResult, new AuthResultMessage(false, AuthFailure.Busy, new byte[ProtocolConstants.ProofLength]).Serialize(), token).ConfigureAwait(false);
                 _audit.Write("auth_busy", ("source", origin.Display));
@@ -130,10 +163,10 @@ public sealed partial class HostService : IAsyncDisposable
             {
                 await writer.WriteAsync(MessageType.AuthResult, new AuthResultMessage(true, AuthFailure.None, auth.HostProof).Serialize(), token).ConfigureAwait(false);
                 reader.MaxPayload = ProtocolConstants.MaxFramePayload;
-                RotatePassword(); // single-use: the password that was just accepted is dead from now on
+                if (auth.Resumed is null) RotatePassword(); // single-use: the password that was just accepted is dead from now on
                 _lockout.RegisterSuccess(origin.SourceKey);
-                _audit.Write("auth_success", ("source", origin.Display), ("viewer", auth.ViewerName));
-                await RunSessionAsync(ch, reader, writer, origin, auth.ViewerName, token).ConfigureAwait(false);
+                _audit.Write("auth_success", ("source", origin.Display), ("viewer", auth.ViewerName), ("resume", auth.Resumed is not null));
+                await RunSessionAsync(ch, reader, writer, origin, auth, token).ConfigureAwait(false);
             }
             finally { _sessionGate.Release(); }
         }
@@ -150,7 +183,7 @@ public sealed partial class HostService : IAsyncDisposable
         }
     }
 
-    private sealed record AuthOutcome(string ViewerName, byte[] HostProof);
+    private sealed record AuthOutcome(string ViewerName, byte[] HostProof, ResumeTicket? Resumed);
 
     /// <summary>Hello -> challenge -> proof check. Returns null (after replying) on any failure.</summary>
     private async Task<AuthOutcome?> AuthenticateAsync(SecureChannel ch, FrameReader reader, FrameWriter writer, PeerOrigin origin, CancellationToken ct)
@@ -166,7 +199,11 @@ public sealed partial class HostService : IAsyncDisposable
             return null;
         }
 
-        var password = Password; // snapshot: a rotation mid-handshake invalidates this attempt naturally
+        // Password mode: the current one-time password. Resume mode: the (high-entropy) resume ticket, if one is valid.
+        // An unknown/expired ticket still runs the full computation against a random secret so failures look identical.
+        var ticket = hello.Resume ? _ticket : null;
+        if (ticket is not null && ticket.ExpiresAt is { } exp && exp <= _time.GetUtcNow()) ticket = null;
+        var password = hello.Resume ? (ticket?.Secret ?? Convert.ToHexString(RandomNumberGenerator.GetBytes(24))) : Password;
         var nonceH = RandomNumberGenerator.GetBytes(ProtocolConstants.NonceLength);
         var salt = RandomNumberGenerator.GetBytes(ProtocolConstants.SaltLength);
         var name = NameSanitizer.Clean(Policy.DisplayName, "host");
@@ -189,8 +226,14 @@ public sealed partial class HostService : IAsyncDisposable
                 new AuthResultMessage(false, blockedNow ? AuthFailure.Blocked : AuthFailure.BadPassword, zero).Serialize(), hs.Token).ConfigureAwait(false);
             return null;
         }
+        if (hello.Resume && Interlocked.CompareExchange(ref _ticket, null, ticket) != ticket)
+        {
+            // lost a race with another resume attempt: the ticket is single-use
+            await writer.WriteAsync(MessageType.AuthResult, new AuthResultMessage(false, AuthFailure.BadPassword, zero).Serialize(), hs.Token).ConfigureAwait(false);
+            return null;
+        }
         var hostProof = PasswordHandshake.HostProof(key, hello.Nonce, nonceH, ch.RemoteFingerprint, ch.LocalFingerprint);
-        return new AuthOutcome(NameSanitizer.Clean(hello.ViewerName, "viewer"), hostProof);
+        return new AuthOutcome(NameSanitizer.Clean(hello.ViewerName, "viewer"), hostProof, hello.Resume ? ticket : null);
     }
 
     private static async Task<byte[]> ReadExpected(FrameReader r, MessageType t, CancellationToken ct)

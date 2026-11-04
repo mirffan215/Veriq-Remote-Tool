@@ -37,9 +37,9 @@ public partial class App : Application
 
         var protector = new DpapiProtector();
         ThemeManager.Apply(store.Current.Theme);
-        _host = new HostController(Dispatcher, store, protector, hostAudit);
+        _host = new HostController(Dispatcher, store, protector, hostAudit, paths.ReceivedFilesDirectory);
         _host.ApplySettings();
-        var viewer = new ViewerLauncher(store, protector, viewerAudit);
+        var viewer = new ViewerLauncher(store, protector, viewerAudit, new UiFilePrompt(Dispatcher), paths.ReceivedFilesDirectory);
         MainWindow = new MainWindow(store, protector, _host, viewer);
         MainWindow.Show();
     }

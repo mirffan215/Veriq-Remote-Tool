@@ -2,7 +2,7 @@ namespace RemoteTool.Core.Protocol;
 
 public static class ProtocolConstants
 {
-    public const ushort Version = 1;
+    public const ushort Version = 2;
     public const int MaxFramePayload = 16 * 1024 * 1024;
     /// <summary>Frame ceiling before authentication completes (bounded allocation for unauthenticated peers).</summary>
     public const int PreAuthMaxFramePayload = 4096;
@@ -13,6 +13,11 @@ public static class ProtocolConstants
     public const int Pbkdf2Iterations = 600_000;
     public const int MaxNameChars = 64;
     public const int MaxMonitors = 16;
+    public const int MaxClipboardBytes = 1024 * 1024;
+    public const int DefaultFileChunk = 64 * 1024;
+    public const int MaxFileChunk = 256 * 1024;
+    public const int MaxFileNameChars = 255;
+    public static readonly TimeSpan ResumeWindow = TimeSpan.FromMinutes(2);
     public const int MaxRectsPerFrame = 4096;
     public const int MaxRectJpegBytes = 8 * 1024 * 1024;
     public static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(5);

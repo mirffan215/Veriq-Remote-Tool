@@ -50,7 +50,7 @@ Restart=always
 ```
 Settings (`appsettings.json` or `Relay__*` env): `Port, HealthPort, AccessKey, CertificatePath/Password, DataDirectory, MaxConcurrentSessions (200), MaxRegisteredHosts, MaxConnections,
 IdleTimeoutSeconds (90), ConnectsPerMinutePerIp (10), FailedLookupsPerMinutePerIp (5), RegistrationsPerMinutePerIp`. Logs go to stdout (metadata only).
-Multiple relay addresses for failover: Phase 2.
+Failover: give clients several relay addresses (`relay1.example.com:8443, relay2.example.com:8443`). Relays are independent and stateless, so run two on different hosts/providers; the same access key and (optionally) both fingerprints, comma-separated, go in the client settings.
 
 ## Clients: first-run configuration
 Settings tab → *Relay server* `relay.example.com:8443`, *access key*, optional *fingerprint*. Or silently: set `REMOTETOOL_RELAY`, `REMOTETOOL_RELAY_KEY`, `REMOTETOOL_RELAY_FP`
@@ -80,4 +80,14 @@ xunit.runner.visualstudio 2.8.2, SkiaSharp.NativeAssets.Linux.NoDependencies 2.8
 8. Kill B's network mid-session → A's session ends within ~15 s, no stuck keys on A (hold a key on B while unplugging).
 9. Multi-monitor host (viewer shows primary only in Phase 1), DPI 125 %/150 % on host **and** viewer: the mouse lands on the same pixel everywhere.
 10. Inspect logs on both sides (`%ProgramData%\RemoteTool\logs\audit-host-*.jsonl`, `audit-viewer-*.jsonl`): connect, consent, session start/end with duration; no passwords or screen data.
-11. Clean machine with no .NET installed: the exe starts. Windows 10 / Server 2019: expect the TLS 1.3 limitation (DECISIONS D-02).
+11. Clean Windows 11 machine with no .NET installed: the exe starts.
+
+### Phase 2 checks
+12. **Clipboard:** copy text on B, paste on A, and vice versa (including multi-line and non-Latin text). Turn *Allow clipboard* off on A → nothing syncs. Logs show `clipboard_*` with sizes only.
+13. **File transfer B→A:** viewer toolbar *Send file…* (try 1 KB, 100 MB, and an empty file) → A gets a confirmation (default *No*) → file appears in `Documents\RemoteTool Received`; compare `Get-FileHash` on both sides. Decline once → nothing saved.
+    Try a file named with a long name / reserved name. **A→B:** banner *Send file…*. Kill the network mid-transfer: no `.part` file remains.
+14. **Multi-monitor:** host with 2 monitors → viewer shows *Screen 1* button → switch; mouse clicks land correctly on the second monitor; test mixed DPI (100 % + 150 %).
+15. **Reconnect:** during a session unplug B's network (or disable the adapter) for ~20 s, re-enable → B shows "reconnecting…", then the screen returns **without** a new password or consent dialog; A's audit log has `session_resumed`. Disconnect via the button, then confirm no automatic reconnect happens.
+16. **Quality adaptation:** throttle B's link (Windows 11 *Network Link Conditioner* / `clumsy`) → picture gets softer, then slower, and recovers when the throttle is removed. Stats bar shows FPS/latency/KB/s.
+17. **Address book:** save an ID with a nickname, restart the app, double-click the entry. No passwords appear in `settings.json`.
+18. **Relay failover:** configure two relays; stop relay 1 → within ~1 min the host shows Online on relay 2 and a viewer still connects by ID. Stop the relay process with `SIGTERM`/`docker stop` → logs show a clean shutdown.

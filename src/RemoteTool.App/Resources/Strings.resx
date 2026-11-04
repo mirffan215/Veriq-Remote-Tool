@@ -20,7 +20,7 @@
  <data name="Perm_ViewOnly" xml:space="preserve"><value>View-only (block remote mouse and keyboard)</value></data>
  <data name="Perm_Clipboard" xml:space="preserve"><value>Allow clipboard</value></data>
  <data name="Perm_Files" xml:space="preserve"><value>Allow file transfer</value></data>
- <data name="Relay_Address" xml:space="preserve"><value>Relay server (host:port)</value></data>
+ <data name="Relay_Address" xml:space="preserve"><value>Relay server(s) host:port (several separated by commas = failover)</value></data>
  <data name="Relay_Key" xml:space="preserve"><value>Relay access key (leave empty to keep current)</value></data>
  <data name="Relay_Fingerprint" xml:space="preserve"><value>Relay certificate SHA-256 fingerprint (optional pin)</value></data>
  <data name="Clear" xml:space="preserve"><value>Clear stored key</value></data>
@@ -65,4 +65,25 @@
  <data name="Err_Port" xml:space="preserve"><value>Port must be a number between 1 and 65535.</value></data>
  <data name="Err_Listen" xml:space="preserve"><value>Could not open the direct-connection port: {0}</value></data>
  <data name="Err_Relay" xml:space="preserve"><value>The relay address must look like host:port.</value></data>
+ <data name="File_Title" xml:space="preserve"><value>Incoming file</value></data>
+ <data name="File_Confirm" xml:space="preserve"><value>{0} wants to send you a file:
+
+{1}  ({2})
+
+It will be saved in the "RemoteTool Received" folder. Only accept files you expect.</value></data>
+ <data name="Viewer_SendFile" xml:space="preserve"><value>Send file…</value></data>
+ <data name="Viewer_Monitor" xml:space="preserve"><value>Screen {0}</value></data>
+ <data name="Viewer_MonitorItem" xml:space="preserve"><value>Screen {0}  ({1}×{2})</value></data>
+ <data name="Viewer_Reconnecting" xml:space="preserve"><value>Connection lost - reconnecting (attempt {0})…</value></data>
+ <data name="File_Sent" xml:space="preserve"><value>File sent and verified (SHA-256).</value></data>
+ <data name="File_Declined" xml:space="preserve"><value>The other side declined the file.</value></data>
+ <data name="File_Hash" xml:space="preserve"><value>Transfer failed: checksum mismatch.</value></data>
+ <data name="File_Failed" xml:space="preserve"><value>Transfer failed.</value></data>
+ <data name="File_Cancelled" xml:space="preserve"><value>Transfer cancelled.</value></data>
+ <data name="File_Received" xml:space="preserve"><value>File received: {0}</value></data>
+ <data name="Banner_SendFile" xml:space="preserve"><value>Send file…</value></data>
+ <data name="Addr_Title" xml:space="preserve"><value>Address book (saved IDs, no passwords)</value></data>
+ <data name="Addr_Nickname" xml:space="preserve"><value>Nickname</value></data>
+ <data name="Addr_Save" xml:space="preserve"><value>Save</value></data>
+ <data name="Addr_Remove" xml:space="preserve"><value>Remove</value></data>
 </root>

@@ -26,7 +26,7 @@ public sealed class HostController : IAsyncDisposable
     public string? LastError { get; private set; }
     public event Action? StateChanged;
 
-    public HostController(Dispatcher ui, SettingsStore store, ISecretProtector protector, IAuditLog audit)
+    public HostController(Dispatcher ui, SettingsStore store, ISecretProtector protector, IAuditLog audit, string receiveDir)
     {
         _ui = ui;
         _store = store;
@@ -37,7 +37,10 @@ public sealed class HostController : IAsyncDisposable
             () => new WindowsInputInjector(),
             new UiConsent(ui),
             audit,
-            BuildPolicy());
+            BuildPolicy(),
+            clipboardFactory: () => new WindowsClipboard(),
+            filePrompt: new UiFilePrompt(ui),
+            receiveDirectory: receiveDir);
         Service.PasswordChanged += RaiseChanged;
         Service.RelayStatusChanged += _ => RaiseChanged();
         Service.IdRegenerated += _ => RaiseChanged();
@@ -60,12 +63,12 @@ public sealed class HostController : IAsyncDisposable
         Service.Policy = BuildPolicy();
 
         var key = string.IsNullOrEmpty(s.RelayAccessKeyProtected) ? "" : _protector.Unprotect(s.RelayAccessKeyProtected);
-        var relayWanted = RelayEndpoint.TryParse(s.RelayAddress, key, s.RelayFingerprint, out var ep);
+        var relayWanted = RelayEndpoint.TryParseList(s.RelayAddress, key, s.RelayFingerprint, out var relays);
         var fingerprint = $"{s.RelayAddress}|{key}|{s.RelayFingerprint}";
         if (relayWanted && (fingerprint != _relayKey || Service.RelayStatus == RelayStatus.Disabled))
         {
             _relayKey = fingerprint;
-            Service.StartRelay(ep!, new SettingsIdProvider(_store));
+            Service.StartRelay(relays, new SettingsIdProvider(_store));
         }
         else if (!relayWanted && Service.RelayStatus != RelayStatus.Disabled)
         {
@@ -112,11 +115,24 @@ public sealed class HostController : IAsyncDisposable
 
     private void OnSessionStarted(SessionInfo s)
     {
-        _banner = new BannerWindow(s.ViewerName, () => Service.DisconnectActive(ByeReason.HostDisconnected));
+        _banner = new BannerWindow(s.ViewerName, () => Service.DisconnectActive(ByeReason.HostDisconnected),
+            (s.Permissions & Permissions.FileTransfer) != 0 ? SendFileToViewer : null);
         _banner.Show();
         _hotkey = new HotKeyListener(() => Service.DisconnectActive(ByeReason.Emergency));
         if (!_hotkey.Registered) _audit.Write("hotkey_unavailable");
         StateChanged?.Invoke();
+    }
+
+    private async void SendFileToViewer()
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog();
+        if (dlg.ShowDialog() != true) return;
+        var outcome = await Service.SendFileAsync(dlg.FileName);
+        MessageBox.Show(Localization.Loc.T(outcome switch
+        {
+            FileSendOutcome.Completed => "File_Sent", FileSendOutcome.Rejected => "File_Declined", FileSendOutcome.HashMismatch => "File_Hash",
+            FileSendOutcome.Cancelled => "File_Cancelled", _ => "File_Failed",
+        }), Localization.Loc.T("App_Title"));
     }
 
     private void OnSessionEnded()

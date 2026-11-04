@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using RemoteTool.App.Localization;
+using RemoteTool.App.Services;
 using RemoteTool.Capture;
 using RemoteTool.Core.Protocol;
 using RemoteTool.Core.Session;
@@ -14,7 +15,9 @@ namespace RemoteTool.App.Windows;
 /// <summary>Remote screen view: decodes tile updates into a WriteableBitmap and forwards mouse/keyboard to the host.</summary>
 public partial class ViewerWindow : Window
 {
-    private readonly ViewerSession _session;
+    private ViewerSession _session;
+    private readonly ViewerContext _ctx;
+    private readonly CancellationTokenSource _lifetime = new();
     private readonly HashSet<(ushort vk, bool ext)> _keysDown = new();
     private readonly DispatcherTimer _statsTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private WriteableBitmap? _bitmap;
@@ -23,22 +26,36 @@ public partial class ViewerWindow : Window
     private int _frames;
     private long _lastBytes;
     private long _lastMove;
+    private ScreenInfoMessage? _screen;
 
-    public ViewerWindow(ViewerSession session)
+    public ViewerWindow(ViewerSession session, ViewerContext ctx)
     {
         InitializeComponent();
         FlowDirection = Loc.Flow;
+        _ctx = ctx;
         _session = session;
-        Title = $"{session.HostName} - RemoteTool";
-        ViewOnlyLabel.Visibility = (session.Permissions & Permissions.Control) == 0 ? Visibility.Visible : Visibility.Collapsed;
-        session.FrameReceived += OnFrame;
-        session.CursorChanged += OnCursor;
-        session.Ended += OnEnded;
         _statsTimer.Tick += (_, _) => UpdateStats();
         _statsTimer.Start();
         Deactivated += (_, _) => ReleaseAllKeys(); // never leave a key held on the remote machine
         Closing += OnClosing;
-        session.Start(); // after all subscriptions: the first keyframe must not be missed
+        Attach(session); // subscribes to every event, then starts the session: the first keyframe cannot be missed
+    }
+
+    /// <summary>Wires a (new or resumed) session into this window.</summary>
+    private void Attach(ViewerSession s)
+    {
+        _session = s;
+        Title = $"{s.HostName} - RemoteTool";
+        ViewOnlyLabel.Visibility = (s.Permissions & Permissions.Control) == 0 ? Visibility.Visible : Visibility.Collapsed;
+        s.FrameReceived += OnFrame;
+        s.CursorChanged += OnCursor;
+        s.ScreenInfoReceived += info => Dispatcher.InvokeAsync(() => OnScreenInfo(info));
+        s.Ended += (reason, _) => Dispatcher.InvokeAsync(() => OnSessionEnded(s, reason));
+        s.FileReceived += path => Dispatcher.InvokeAsync(() => StatusText.Text = Loc.F("File_Received", System.IO.Path.GetFileName(path)));
+        if ((s.Permissions & Permissions.Clipboard) != 0) s.AttachClipboard(_ctx.ClipboardFactory());
+        s.AttachFileTransfer(_ctx.Prompt, _ctx.FileOptions);
+        SendFileButton.IsEnabled = s.CanTransferFiles;
+        s.Start();
     }
 
     // ---- rendering ----------------------------------------------------------------------------
@@ -204,9 +221,73 @@ public partial class ViewerWindow : Window
         _keysDown.Clear();
     }
 
-    // ---- lifetime -----------------------------------------------------------------------------
+    // ---- monitors, files ----------------------------------------------------------------------
 
-    private void OnEnded(ByeReason reason, string text) => Dispatcher.InvokeAsync(() => EndLocally(reason.ToString()));
+    private void OnScreenInfo(ScreenInfoMessage info)
+    {
+        _screen = info;
+        MonitorButton.Visibility = info.Monitors.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        MonitorButton.Content = Loc.F("Viewer_Monitor", info.ActiveMonitor + 1);
+    }
+
+    private void Monitor_Click(object sender, RoutedEventArgs e)
+    {
+        if (_screen is null) return;
+        var menu = new System.Windows.Controls.ContextMenu { PlacementTarget = MonitorButton };
+        foreach (var m in _screen.Monitors)
+        {
+            var index = m.Index;
+            var item = new System.Windows.Controls.MenuItem { Header = Loc.F("Viewer_MonitorItem", m.Index + 1, m.Width, m.Height), IsChecked = m.Index == _screen.ActiveMonitor };
+            item.Click += (_, _) => _ = _session.SelectMonitorAsync(index);
+            menu.Items.Add(item);
+        }
+        menu.IsOpen = true;
+    }
+
+    private async void SendFile_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog();
+        if (dlg.ShowDialog(this) != true) return;
+        SendFileButton.IsEnabled = false;
+        var progress = new Progress<long>(p => StatusText.Text = $"{p / 1024:N0} KB");
+        try
+        {
+            var outcome = await _session.SendFileAsync(dlg.FileName, progress, _lifetime.Token);
+            StatusText.Text = Loc.T(outcome switch
+            {
+                FileSendOutcome.Completed => "File_Sent", FileSendOutcome.Rejected => "File_Declined", FileSendOutcome.HashMismatch => "File_Hash",
+                FileSendOutcome.Cancelled => "File_Cancelled", _ => "File_Failed",
+            });
+        }
+        finally { if (!_closing) SendFileButton.IsEnabled = _session.CanTransferFiles; }
+    }
+
+    // ---- lifetime / reconnect -----------------------------------------------------------------
+
+    private async void OnSessionEnded(ViewerSession ended, ByeReason reason)
+    {
+        if (_closing || !ReferenceEquals(ended, _session)) return; // stale event from a replaced session
+        if (ViewerReconnect.IsRecoverable(reason) && ended.ResumeToken.Length > 0) { await TryReconnectAsync(ended); return; }
+        EndLocally(reason.ToString());
+    }
+
+    private async Task TryReconnectAsync(ViewerSession lost)
+    {
+        ReleaseAllKeysLocal();
+        ReconnectText.Visibility = Visibility.Visible;
+        ReconnectText.Text = Loc.F("Viewer_Reconnecting", 1);
+        try
+        {
+            var next = await ViewerReconnect.ResumeAsync(_ctx.Redial, _ctx.ViewerName, lost.ResumeToken, _ctx.Audit, Permissions.All, _lifetime.Token,
+                onAttempt: n => Dispatcher.InvokeAsync(() => ReconnectText.Text = Loc.F("Viewer_Reconnecting", n)));
+            if (_closing) { await next.DisposeAsync(); return; }
+            _ = lost.DisposeAsync().AsTask();
+            Attach(next);
+            ReconnectText.Visibility = Visibility.Collapsed;
+        }
+        catch (ConnectFailedException) { EndLocally("connection lost"); }
+        catch (OperationCanceledException) { }
+    }
 
     private void EndLocally(string reason)
     {
@@ -217,10 +298,13 @@ public partial class ViewerWindow : Window
         Close();
     }
 
+    private void ReleaseAllKeysLocal() => _keysDown.Clear(); // connection is gone; the host already released its side
+
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         _closing = true;
         _statsTimer.Stop();
+        _lifetime.Cancel();
         ReleaseAllKeys();
         _ = _session.DisposeAsync().AsTask();
     }

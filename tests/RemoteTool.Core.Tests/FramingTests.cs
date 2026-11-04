@@ -75,7 +75,7 @@ public class FramingTests
         {
             var data = new byte[rng.Next(0, 80)];
             rng.NextBytes(data);
-            for (byte t = 1; t <= 18; t++)
+            for (byte t = 1; t <= 19; t++)
             {
                 try { Parse(new Frame(t, data)); } catch (ProtocolException) { }
             }
@@ -99,6 +99,11 @@ public class FramingTests
             case MessageType.KeyEvent: KeyEventMessage.Parse(f.Payload); break;
             case MessageType.Ping or MessageType.Pong: PingMessage.Parse(f.Payload); break;
             case MessageType.Bye: ByeMessage.Parse(f.Payload); break;
+            case MessageType.MonitorSelect: MonitorSelectMessage.Parse(f.Payload); break;
+            case MessageType.ClipboardData: ClipboardDataMessage.Parse(f.Payload); break;
+            case MessageType.FileOffer: FileOfferMessage.Parse(f.Payload); break;
+            case MessageType.FileChunk: FileChunkMessage.Parse(f.Payload); break;
+            case MessageType.FileAck: FileAckMessage.Parse(f.Payload); break;
         }
     }
 

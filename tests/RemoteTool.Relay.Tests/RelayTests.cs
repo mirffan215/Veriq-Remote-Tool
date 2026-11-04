@@ -147,4 +147,50 @@ public class RelayTests
 
     private static int IndexOf(byte[] hay, byte[] needle)
         => hay.AsSpan().IndexOf(needle);
+
+    private static RelayEndpoint Dead(RelayRig rig)
+    {
+        var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        l.Start();
+        var port = ((System.Net.IPEndPoint)l.LocalEndpoint).Port;
+        l.Stop();
+        return rig.Endpoint() with { Port = port };
+    }
+
+    [Fact]
+    public async Task HostFailsOverToSecondRelayWhenFirstIsDown_AndViewerFindsItThroughTheList()
+    {
+        await using var rigB = await RelayRig.StartAsync();
+        var dead = Dead(rigB);
+        var inj = new FakeInjector();
+        await using var host = new HostService(() => new FakeProducer(), () => inj, new FakeConsent(), new ListAudit(), new HostPolicy("FAILOVER-PC"));
+        host.StartRelay(new[] { dead, rigB.Endpoint() }, new FixedId("135792468"), new RelayRegistrationOptions(TimeSpan.FromMilliseconds(100), 2));
+        await RelayRig.WaitFor(() => host.RelayStatus == RelayStatus.Online, 20);
+        Assert.Equal(1, rigB.Engine.RegisteredHosts);
+
+        await using var rigA = await RelayRig.StartAsync();   // knows nothing about this host
+        var stream = await RelayClient.ConnectToHostAsync(new[] { dead, rigA.Endpoint(), rigB.Endpoint() }, "135792468", default);
+        await using var v = await ViewerSession.ConnectAsync(stream, "alice", host.Password, new ListAudit(), Permissions.All, default);
+        Assert.Equal("FAILOVER-PC", v.HostName);
+    }
+
+    [Fact]
+    public async Task AllRelaysUnknownGivesGenericNotFound_AllDownGivesNetworkError()
+    {
+        await using var rig = await RelayRig.StartAsync();
+        var e1 = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(new[] { Dead(rig), rig.Endpoint() }, "246802468", default));
+        Assert.Equal(ConnectFailure.NotFound, e1.Failure);
+        var e2 = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(new[] { Dead(rig) }, "246802468", default));
+        Assert.Equal(ConnectFailure.Network, e2.Failure);
+    }
+
+    [Fact]
+    public void RelayListParsingAndMultiplePins()
+    {
+        Assert.True(RelayEndpoint.TryParseList("a.example.com:8443, b.example.com:443;c:1", "k", "AA,BB", out var l));
+        Assert.Equal(3, l.Count);
+        Assert.Equal("AA,BB", l[1].Fingerprint);
+        Assert.False(RelayEndpoint.TryParseList("a.example.com:8443, nonsense", "k", "", out _));
+        Assert.False(RelayEndpoint.TryParseList("", "k", "", out _));
+    }
 }

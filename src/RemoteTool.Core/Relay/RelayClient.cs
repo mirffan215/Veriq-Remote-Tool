@@ -8,7 +8,8 @@ using RemoteTool.Core.Session;
 
 namespace RemoteTool.Core.Relay;
 
-/// <param name="Fingerprint">Optional hex SHA-256 of the relay certificate to pin. Empty = require a publicly trusted certificate.</param>
+/// <param name="Fingerprint">Optional hex SHA-256 of the relay certificate to pin (several, comma-separated, are accepted).
+/// Empty = require a publicly trusted certificate.</param>
 public sealed record RelayEndpoint(string Host, int Port, string AccessKey, string Fingerprint = "")
 {
     public static bool TryParse(string address, string accessKey, string fingerprint, out RelayEndpoint? ep)
@@ -21,6 +22,19 @@ public sealed record RelayEndpoint(string Host, int Port, string AccessKey, stri
         if (host.Length == 0) return false;
         ep = new RelayEndpoint(host, port, accessKey, fingerprint);
         return true;
+    }
+
+    /// <summary>Parses "relay1:8443, relay2:8443" (comma or semicolon separated). Returns false if any entry is invalid or none given.</summary>
+    public static bool TryParseList(string addresses, string accessKey, string fingerprint, out IReadOnlyList<RelayEndpoint> list)
+    {
+        var result = new List<RelayEndpoint>();
+        list = result;
+        foreach (var part in addresses.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!TryParse(part, accessKey, fingerprint, out var ep)) return false;
+            result.Add(ep!);
+        }
+        return result.Count > 0;
     }
 }
 
@@ -55,8 +69,11 @@ public static class RelayClient
         if (string.IsNullOrWhiteSpace(ep.Fingerprint)) return errors == SslPolicyErrors.None;
         try
         {
-            var pinned = Convert.FromHexString(ep.Fingerprint.Replace(":", "").Replace(" ", ""));
-            return CryptographicOperations.FixedTimeEquals(pinned, SHA256.HashData(cert.GetRawCertData()));
+            var actual = SHA256.HashData(cert.GetRawCertData());
+            var ok = false;
+            foreach (var one in ep.Fingerprint.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                ok |= CryptographicOperations.FixedTimeEquals(Convert.FromHexString(one.Replace(":", "").Replace(" ", "")), actual);
+            return ok;
         }
         catch (FormatException) { return false; }
     }
@@ -88,5 +105,19 @@ public static class RelayClient
             if (e is OperationCanceledException && ct.IsCancellationRequested) throw;
             throw new ConnectFailedException(ConnectFailure.NotFound, "ID not found or offline.", e);
         }
+    }
+
+    /// <summary>Failover: tries each relay in order until one pairs us with the host.</summary>
+    public static async Task<Stream> ConnectToHostAsync(IReadOnlyList<RelayEndpoint> relays, string id, CancellationToken ct)
+    {
+        ConnectFailedException? last = null;
+        var anyNotFound = false;
+        foreach (var r in relays)
+        {
+            try { return await ConnectToHostAsync(r, id, ct).ConfigureAwait(false); }
+            catch (ConnectFailedException e) { last = e; anyNotFound |= e.Failure == ConnectFailure.NotFound; }
+        }
+        // A relay that answered "not found" beats "cannot reach": the host is simply offline.
+        throw anyNotFound ? new ConnectFailedException(ConnectFailure.NotFound, "ID not found or offline.") : last ?? new ConnectFailedException(ConnectFailure.Network, "No relay configured.");
     }
 }

@@ -8,13 +8,16 @@ namespace RemoteTool.App.Windows;
 public partial class BannerWindow : Window
 {
     private readonly Action _disconnect;
+    private readonly Action? _sendFile;
     private readonly DispatcherTimer _keepOnTop = new() { Interval = TimeSpan.FromSeconds(2) };
 
-    public BannerWindow(string viewerName, Action disconnect)
+    public BannerWindow(string viewerName, Action disconnect, Action? sendFile = null)
     {
         InitializeComponent();
         FlowDirection = Loc.Flow;
         _disconnect = disconnect;
+        _sendFile = sendFile;
+        if (sendFile is not null) SendFileButton.Visibility = Visibility.Visible;
         Message.Text = Loc.F("Banner_Text", viewerName);
         SizeChanged += (_, _) => { Left = (SystemParameters.PrimaryScreenWidth - ActualWidth) / 2; Top = 0; };
         // Re-assert Topmost so another topmost window cannot permanently cover the indicator.
@@ -22,6 +25,8 @@ public partial class BannerWindow : Window
         Loaded += (_, _) => _keepOnTop.Start();
         Closed += (_, _) => _keepOnTop.Stop();
     }
+
+    private void SendFile_Click(object sender, RoutedEventArgs e) => _sendFile?.Invoke();
 
     private void Disconnect_Click(object sender, RoutedEventArgs e) => _disconnect();
 }

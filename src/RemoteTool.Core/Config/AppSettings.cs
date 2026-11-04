@@ -3,6 +3,12 @@ using System.Text.Json.Serialization;
 
 namespace RemoteTool.Core.Config;
 
+public sealed class AddressBookEntry
+{
+    public string Target { get; set; } = "";
+    public string Nickname { get; set; } = "";
+}
+
 public sealed class RecentConnection
 {
     public string Target { get; set; } = "";
@@ -26,6 +32,9 @@ public sealed class AppSettings
     public bool AllowFileTransfer { get; set; } = true;
     public string Theme { get; set; } = "System";
     public List<RecentConnection> Recent { get; set; } = new();
+    /// <summary>Saved IDs / addresses with nicknames. Never contains passwords.</summary>
+    public List<AddressBookEntry> AddressBook { get; set; } = new();
+    public int MaxFileTransferMb { get; set; } = 1024;
 }
 
 public interface ISecretProtector
@@ -87,6 +96,30 @@ public sealed class SettingsStore
             Current.Recent.Insert(0, new RecentConnection { Target = target, LastUsed = DateTimeOffset.UtcNow });
             if (Current.Recent.Count > 10) Current.Recent.RemoveRange(10, Current.Recent.Count - 10);
             SaveLocked();
+        }
+    }
+
+    public void UpsertAddress(string target, string nickname)
+    {
+        lock (_gate)
+        {
+            var nick = nickname.Trim();
+            if (nick.Length > 64) nick = nick[..64];
+            var e = Current.AddressBook.FirstOrDefault(a => string.Equals(a.Target, target, StringComparison.OrdinalIgnoreCase));
+            if (e is null) Current.AddressBook.Add(new AddressBookEntry { Target = target, Nickname = nick });
+            else e.Nickname = nick;
+            Current.AddressBook = Current.AddressBook.OrderBy(a => a.Nickname.Length == 0 ? a.Target : a.Nickname, StringComparer.CurrentCultureIgnoreCase).ToList();
+            SaveLocked();
+        }
+    }
+
+    public bool RemoveAddress(string target)
+    {
+        lock (_gate)
+        {
+            var removed = Current.AddressBook.RemoveAll(a => string.Equals(a.Target, target, StringComparison.OrdinalIgnoreCase)) > 0;
+            if (removed) SaveLocked();
+            return removed;
         }
     }
 

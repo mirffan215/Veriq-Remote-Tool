@@ -55,9 +55,13 @@ public sealed partial class HostService
 
     /// <summary>Mode B: keep this host's ID registered with the relay (outbound only).</summary>
     public void StartRelay(RelayEndpoint endpoint, IIdProvider ids, RelayRegistrationOptions? options = null)
+        => StartRelay(new[] { endpoint }, ids, options);
+
+    /// <summary>Several relays: the first reachable one is used; connect failures fail over to the next.</summary>
+    public void StartRelay(IReadOnlyList<RelayEndpoint> endpoints, IIdProvider ids, RelayRegistrationOptions? options = null)
     {
         _ = StopRelayAsync();
-        var reg = new RelayRegistration(endpoint, ids, async (stream, viewerAddr, ct) =>
+        var reg = new RelayRegistration(endpoints, ids, async (stream, viewerAddr, ct) =>
         {
             var origin = new PeerOrigin("relay:" + viewerAddr, viewerAddr + " (via relay)", true, null);
             await HandleConnectionAsync(stream, origin, ct).ConfigureAwait(false);
