@@ -42,6 +42,8 @@ public sealed partial class HostService : IAsyncDisposable
     private readonly IUnattendedPolicy? _unattended;
     private readonly ISessionRecorderFactory? _recorderFactory;
     private readonly FailureBreaker _breaker;
+    /// <summary>False for the Windows service: nobody can read a one-time password at the login screen, so only the permanent password (and resume tickets) are accepted.</summary>
+    private readonly bool _oneTimeEnabled;
 
     /// <summary>Single-use credential letting the same viewer resume after a network drop without a new password/consent dialog.</summary>
     private sealed class ResumeTicket
@@ -56,8 +58,10 @@ public sealed partial class HostService : IAsyncDisposable
         IAuditLog audit, HostPolicy policy, AuthLockout? lockout = null,
         Func<IClipboardAccess>? clipboardFactory = null, IFileTransferPrompt? filePrompt = null, string? receiveDirectory = null,
         TimeProvider? time = null,
-        IPermanentCredential? permanentCredential = null, IUnattendedPolicy? unattended = null, ISessionRecorderFactory? recorderFactory = null)
+        IPermanentCredential? permanentCredential = null, IUnattendedPolicy? unattended = null, ISessionRecorderFactory? recorderFactory = null,
+        bool oneTimePasswordEnabled = true)
     {
+        _oneTimeEnabled = oneTimePasswordEnabled;
         _permanent = permanentCredential;
         _unattended = unattended;
         _recorderFactory = recorderFactory;
@@ -234,6 +238,7 @@ public sealed partial class HostService : IAsyncDisposable
             {
                 AuthMode.Resume => ticket?.Secret ?? Convert.ToHexString(RandomNumberGenerator.GetBytes(24)),
                 AuthMode.Permanent => Convert.ToHexString(RandomNumberGenerator.GetBytes(24)),
+                _ when !_oneTimeEnabled => Convert.ToHexString(RandomNumberGenerator.GetBytes(24)),
                 _ => Password, // one-time password; a rotation mid-handshake invalidates this attempt naturally
             };
             key = await Task.Run(() => PasswordHandshake.DeriveKey(secret, salt), hs.Token).ConfigureAwait(false);

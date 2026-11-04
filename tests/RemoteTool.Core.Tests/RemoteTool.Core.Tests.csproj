@@ -8,6 +8,7 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <ProjectReference Include="../../src/RemoteTool.Core/RemoteTool.Core.csproj" />
+    <ProjectReference Include="../../src/RemoteTool.Service/RemoteTool.Service.csproj" />
   </ItemGroup>
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
 </Project>
