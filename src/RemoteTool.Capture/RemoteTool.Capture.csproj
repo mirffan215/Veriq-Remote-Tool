@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>RemoteTool.Capture</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="System.IO.Hashing" />
+    <ProjectReference Include="../RemoteTool.Core/RemoteTool.Core.csproj" />
+  </ItemGroup>
+</Project>

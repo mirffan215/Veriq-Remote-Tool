@@ -51,6 +51,7 @@ public class EndToEndTests
 
         var got = new TaskCompletionSource<FrameUpdateMessage>();
         v.FrameReceived += f => got.TrySetResult(f);
+        v.Start();
         var frame = await got.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.True(frame.Keyframe);
         Assert.Equal(64, frame.Width);
@@ -110,6 +111,7 @@ public class EndToEndTests
         await using var rig = Rig.Start(new HostPolicy("Test-PC", ViewOnly: true));
         await using var v = await ViewerSession.ConnectAsync(await rig.Dial(), "carol", rig.Host.Password, new ListAudit(), Permissions.All, default);
         Assert.Equal(Permissions.None, v.Permissions & Permissions.Control);
+        v.Start();
         await v.SendMouseAsync(new MouseEventMessage(MouseKind.Move, MouseButton.None, 1, 1, 0));
         await Task.Delay(300);
         Assert.Empty(rig.Injector.Events);
@@ -122,6 +124,7 @@ public class EndToEndTests
         await using var v = await ViewerSession.ConnectAsync(await rig.Dial(), "dave", rig.Host.Password, new ListAudit(), Permissions.All, default);
         var ended = new TaskCompletionSource<ByeReason>();
         v.Ended += (r, _) => ended.TrySetResult(r);
+        v.Start();
         rig.Host.DisconnectActive(ByeReason.Emergency);
         Assert.Equal(ByeReason.Emergency, await ended.Task.WaitAsync(TimeSpan.FromSeconds(10)));
     }

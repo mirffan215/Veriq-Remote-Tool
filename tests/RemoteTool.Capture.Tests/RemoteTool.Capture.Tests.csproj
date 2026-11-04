@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
+    <ProjectReference Include="../../src/RemoteTool.Capture/RemoteTool.Capture.csproj" />
+    <ProjectReference Include="../../src/RemoteTool.Input/RemoteTool.Input.csproj" />
+  </ItemGroup>
+  <ItemGroup><Using Include="Xunit" /></ItemGroup>
+</Project>

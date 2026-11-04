@@ -1,0 +1,21 @@
+<Window x:Class="RemoteTool.App.Windows.ViewerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:RemoteTool.App.Localization"
+        Title="RemoteTool" Width="1100" Height="720" Background="#101010">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrushX}" BorderThickness="0,0,0,1" Padding="8,6">
+      <DockPanel LastChildFill="False">
+        <Button x:Name="FitButton" Focusable="False" Content="{loc:T Viewer_Actual}" Click="Fit_Click" />
+        <Button x:Name="FullButton" Focusable="False" Content="{loc:T Viewer_Full}" Click="Full_Click" />
+        <TextBlock x:Name="ViewOnlyLabel" Text="{loc:T Viewer_ViewOnly}" Foreground="{DynamicResource DangerBrush}" VerticalAlignment="Center" Margin="4,0,12,0" Visibility="Collapsed" />
+        <Button Focusable="False" Content="{loc:T Viewer_Disconnect}" Style="{StaticResource DangerButton}" DockPanel.Dock="Right" Margin="0" Click="Disconnect_Click" />
+        <TextBlock x:Name="StatsText" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="0,0,16,0" Foreground="{DynamicResource MutedBrush}" />
+      </DockPanel>
+    </Border>
+    <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Focusable="False" SizeChanged="Scroller_SizeChanged">
+      <Image x:Name="Screen" Stretch="Fill" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"
+             MouseMove="Screen_MouseMove" MouseDown="Screen_MouseButton" MouseUp="Screen_MouseButton" MouseWheel="Screen_MouseWheel" />
+    </ScrollViewer>
+  </DockPanel>
+</Window>

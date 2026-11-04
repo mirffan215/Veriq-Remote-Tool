@@ -93,8 +93,7 @@ public sealed class ViewerSession : IAsyncDisposable
 
             var s = new ViewerSession(ch, reader, writer, challenge.HostName, consent.GrantedPermissions, audit);
             audit.Write("session_start", ("session", s._id), ("host", s.HostName), ("permissions", consent.GrantedPermissions));
-            s._run = s.RunAsync();
-            return s;
+            return s; // caller subscribes to events, then calls Start() so the first keyframe cannot be missed
         }
         catch (ConnectFailedException e)
         {
@@ -112,6 +111,12 @@ public sealed class ViewerSession : IAsyncDisposable
             await ch.Stream.DisposeAsync().ConfigureAwait(false);
             throw new ConnectFailedException(ConnectFailure.Protocol, "The remote side closed the connection or sent invalid data.", e);
         }
+    }
+
+    /// <summary>Begins processing incoming frames. Call after subscribing to the events.</summary>
+    public void Start()
+    {
+        if (_disposed == 0) _run ??= RunAsync();
     }
 
     private static ConnectFailedException Map(AuthFailure f) => f switch

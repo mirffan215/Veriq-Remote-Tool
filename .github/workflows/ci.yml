@@ -1,0 +1,22 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test-portable:            # Core, Relay, Capture, Input: platform-neutral tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 8.0.x }
+      - run: dotnet test tests/RemoteTool.Core.Tests -c Release
+      - run: dotnet test tests/RemoteTool.Relay.Tests -c Release
+      - run: dotnet test tests/RemoteTool.Capture.Tests -c Release
+      - run: dotnet list RemoteTool.sln package --vulnerable --include-transitive
+  build-windows:            # the WPF app can only be built with the Windows Desktop SDK
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 8.0.x }
+      - run: ./scripts/publish-app.ps1
+      - uses: actions/upload-artifact@v4
+        with: { name: RemoteTool-unsigned, path: artifacts/app/RemoteTool.exe }

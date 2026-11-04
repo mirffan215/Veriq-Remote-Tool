@@ -52,6 +52,7 @@ public class RelayTests
 
         var got = new TaskCompletionSource<FrameUpdateMessage>();
         v.FrameReceived += f => got.TrySetResult(f);
+        v.Start();
         var frame = await got.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(64, frame.Width);
         Assert.Equal("HOSTMARKER-PC", v.HostName);

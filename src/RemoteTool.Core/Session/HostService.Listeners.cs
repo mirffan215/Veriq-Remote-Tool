@@ -13,6 +13,8 @@ public sealed partial class HostService
     public bool DirectListening => _listener is not null;
     public RelayStatus RelayStatus => _relay?.Status ?? RelayStatus.Disabled;
     public event Action<RelayStatus>? RelayStatusChanged;
+    /// <summary>The relay reported a duplicate ID and a new one was generated.</summary>
+    public event Action<string>? IdRegenerated;
 
     /// <summary>Mode A. Off by default; the user enables it explicitly.</summary>
     public void StartDirectListener(int port)
@@ -61,6 +63,7 @@ public sealed partial class HostService
             await HandleConnectionAsync(stream, origin, ct).ConfigureAwait(false);
         }, _audit, options);
         reg.StatusChanged += s => RelayStatusChanged?.Invoke(s);
+        reg.IdRegenerated += id => IdRegenerated?.Invoke(id);
         _relay = reg;
         reg.Start();
     }
