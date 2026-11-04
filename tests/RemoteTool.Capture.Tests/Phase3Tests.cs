@@ -108,7 +108,7 @@ public class H264FrameProducerTests
             g.W = 80; g.H = 40; g.Pixels = new byte[80 * 40 * 4];
             p.GetMonitors();                                // a resolution change is picked up when the monitor list is refreshed
             p.NextH264(0, false, 1000);
-            Assert.Equal(3, created);                       // probe + first size + new size
+            Assert.Equal(2, created);                       // one encoder per size (the capability probe only runs when H264Available is asked)
         }
         using var none = new H264FrameProducer(g, (int w, int h, int fps, int kbps, out string? err) => { err = "no encoder"; return null; });
         Assert.False(none.H264Available);
