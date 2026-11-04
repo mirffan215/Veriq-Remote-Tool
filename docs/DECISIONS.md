@@ -98,7 +98,7 @@ the login screen and (b) cannot open the secure Winlogon desktop (UAC, lock, log
 (desktop attachment is per thread). The service itself, not the helper, calls `SendSAS` (only services may).
 
 **D-26 Everything Windows-only in Phase 3 is unexecuted.** Service shell, WTS launch, pipe ACL, desktop switching, SendSAS, Media Foundation encode/decode, DPAPI, hotkey, banner, WPF — compiled (service/video projects on Linux with
-platform attributes; WPF only syntax-checked) but **never run** by the author. Mitigations: all decision logic sits behind interfaces and is tested with a simulated helper (`ServiceRuntimeTests`, 12 scenarios incl. helper crash + resume);
+platform attributes; WPF only syntax-checked) but **never run** by the author. Mitigations: all decision logic sits behind interfaces and is tested with a simulated helper (`ServiceRuntimeTests`: 8 end-to-end scenarios incl. helper crash + resume);
 `scripts/validate-windows.ps1` and the SERVICE.md checklist define the on-Windows acceptance; a Windows CI job builds the app and runs the codec benchmark. **Phase 3 acceptance (UAC, lock/login screen, H.264 bandwidth) is therefore NOT yet demonstrated.**
 
 **D-27 Permanent password storage.** Only `PBKDF2(password, salt, 600k)` + salt are stored (machine-DPAPI protected, ACL’d file); the plaintext never touches disk. The derived key is password-equivalent for authentication, so the ACL is a real control.
