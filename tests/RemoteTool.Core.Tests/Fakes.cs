@@ -22,7 +22,7 @@ public sealed class FakeProducer : IFrameProducer
     public void Dispose() { }
 }
 
-public sealed class FakeInjector : IInputInjector
+public class FakeInjector : IInputInjector
 {
     public ConcurrentQueue<string> Events { get; } = new();
     public int ReleaseAllCalls;
@@ -110,4 +110,58 @@ public sealed class SeverableProxy : IDisposable
 
     public void SeverAll() { lock (_all) { foreach (var c in _all) try { c.Dispose(); } catch { } _all.Clear(); } }
     public void Dispose() { _l.Stop(); SeverAll(); }
+}
+
+public sealed class TestProtector : RemoteTool.Core.Config.ISecretProtector
+{
+    public string Protect(string plaintext) => "TP:" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(plaintext));
+    public string Unprotect(string protectedText) => System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(protectedText[3..]));
+}
+
+public sealed class SasInjector : FakeInjector, ISpecialKeys
+{
+    public int SasCalls;
+    public void SendCtrlAltDel() => Interlocked.Increment(ref SasCalls);
+}
+
+public sealed class FakeUnattendedPolicy : IUnattendedPolicy
+{
+    public Permissions Permissions { get; set; } = Permissions.Control;
+    public bool Allow = true;
+    public int Calls;
+    public Task<ConsentDecision> DecideAsync(ConsentRequestInfo info, CancellationToken ct)
+    {
+        Interlocked.Increment(ref Calls);
+        return Task.FromResult(new ConsentDecision(Allow, info.Allowed));
+    }
+}
+
+/// <summary>Producer that can speak H.264 (fake NAL bytes) and can be told to fail like a broken GPU encoder.</summary>
+public sealed class H264FakeProducer : IFrameProducer, IH264Source
+{
+    private readonly FakeProducer _tiles = new();
+    private uint _seq;
+    public static volatile bool Fail;
+    public bool H264Available => true;
+    public IReadOnlyList<MonitorInfo> GetMonitors() => _tiles.GetMonitors();
+    public FrameUpdateMessage? NextFrame(int monitorIndex, int quality, bool keyframe) => _tiles.NextFrame(monitorIndex, quality, keyframe);
+    public VideoFrameMessage? NextH264(int monitorIndex, bool keyframe, int bitrateKbps)
+    {
+        if (Fail) throw new CodecUnavailableException("simulated encoder failure");
+        return new VideoFrameMessage((byte)monitorIndex, ++_seq, 64, 64, keyframe, new byte[] { 0, 0, 0, 1, 0x65, 1, 2, 3 });
+    }
+    public CursorShape GetCursorShape() => CursorShape.Arrow;
+    public void Dispose() { }
+}
+
+public sealed class FakeDecoder : IH264Decoder
+{
+    public static volatile bool Fail;
+    public DecodeStatus TryDecode(byte[] annexB, bool keyframe, out DecodedFrame? frame)
+    {
+        if (Fail) { frame = null; return DecodeStatus.Failed; }
+        frame = new DecodedFrame(new byte[64 * 64 * 4], 64, 64);
+        return DecodeStatus.Frame;
+    }
+    public void Dispose() { }
 }

@@ -2,7 +2,7 @@ namespace RemoteTool.Core.Protocol;
 
 public static class ProtocolConstants
 {
-    public const ushort Version = 2;
+    public const ushort Version = 3;
     public const int MaxFramePayload = 16 * 1024 * 1024;
     /// <summary>Frame ceiling before authentication completes (bounded allocation for unauthenticated peers).</summary>
     public const int PreAuthMaxFramePayload = 4096;

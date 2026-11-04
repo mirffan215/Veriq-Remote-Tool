@@ -11,6 +11,24 @@ public interface IFrameProducer : IDisposable
     CursorShape GetCursorShape();
 }
 
+/// <summary>Optional capability of an <see cref="IInputInjector"/>: Secure Attention Sequence (only available when running as the Windows service).</summary>
+public interface ISpecialKeys { void SendCtrlAltDel(); }
+
+/// <summary>
+/// Optional capability of an <see cref="IFrameProducer"/>: hardware/software H.264 for the monitor. Returns null when nothing changed.
+/// Throw <see cref="CodecUnavailableException"/> to make the host fall back to the tile codec for the rest of the session.
+/// </summary>
+public interface IH264Source
+{
+    bool H264Available { get; }
+    VideoFrameMessage? NextH264(int monitorIndex, bool keyframe, int bitrateKbps);
+}
+
+public sealed class CodecUnavailableException : Exception
+{
+    public CodecUnavailableException(string message, Exception? inner = null) : base(message, inner) { }
+}
+
 /// <summary>Injects remote input on the host. Must release every held key/button in <see cref="ReleaseAll"/>.</summary>
 public interface IInputInjector : IDisposable
 {
@@ -19,7 +37,8 @@ public interface IInputInjector : IDisposable
     void ReleaseAll();
 }
 
-public sealed record ConsentRequestInfo(string ViewerName, string Source, bool ViaRelay, Permissions Requested, Permissions Allowed);
+/// <param name="Recording">True when this host will record the session (the consent UI must say so).</param>
+public sealed record ConsentRequestInfo(string ViewerName, string Source, bool ViaRelay, Permissions Requested, Permissions Allowed, bool Recording = false);
 public sealed record ConsentDecision(bool Granted, Permissions Permissions);
 
 public interface IConsentProvider
@@ -66,4 +85,14 @@ public static class NameSanitizer
         if (cleaned.Length > ProtocolConstants.MaxNameChars) cleaned = cleaned[..ProtocolConstants.MaxNameChars];
         return cleaned.Length == 0 ? fallback : cleaned;
     }
+}
+
+public enum DecodeStatus { NeedMoreInput, Frame, Failed }
+
+public sealed record DecodedFrame(byte[] Bgra, int Width, int Height);
+
+/// <summary>Viewer-side H.264 decoder (Media Foundation on Windows). Any <see cref="DecodeStatus.Failed"/> triggers fallback to the tile codec.</summary>
+public interface IH264Decoder : IDisposable
+{
+    DecodeStatus TryDecode(byte[] annexB, bool keyframe, out DecodedFrame? frame);
 }

@@ -39,17 +39,36 @@ public enum CursorShape : byte
 public enum MouseKind : byte { Move = 0, Down = 1, Up = 2, Wheel = 3, HWheel = 4 }
 public enum MouseButton : byte { None = 0, Left = 1, Right = 2, Middle = 3, X1 = 4, X2 = 5 }
 
-/// <param name="Resume">True when the shared secret is a resume ticket (reconnect after a network drop) instead of the one-time password.</param>
-public sealed record HelloMessage(ushort Version, string ViewerName, byte[] Nonce, bool Resume = false)
+public enum AuthMode : byte
 {
-    public byte[] Serialize() => new ProtoWriter().U16(Version).Str(ViewerName).Fixed(Nonce).Bool(Resume).ToArray();
+    /// <summary>Secret = the one-time password shown on the host.</summary>
+    OneTimePassword = 0,
+    /// <summary>Secret = resume ticket from a previous session (reconnect after a network drop).</summary>
+    Resume = 1,
+    /// <summary>Secret = the permanent (unattended) password; only accepted when the host runs the service with unattended access enabled.</summary>
+    Permanent = 2,
+}
+
+[Flags]
+public enum VideoCodecs : byte { None = 0, TileJpeg = 1, H264 = 2 }
+
+/// <param name="Mode">Which secret the viewer proves knowledge of.</param>
+public sealed record HelloMessage(ushort Version, string ViewerName, byte[] Nonce, AuthMode Mode = AuthMode.OneTimePassword)
+{
+    public bool Resume => Mode == AuthMode.Resume;
+
+    public byte[] Serialize() => new ProtoWriter().U16(Version).Str(ViewerName).Fixed(Nonce).U8((byte)Mode).ToArray();
 
     public static HelloMessage Parse(byte[] p)
     {
         var r = new ProtoReader(p);
-        var m = new HelloMessage(r.U16(), r.Str(ProtocolConstants.MaxNameChars), r.Fixed(ProtocolConstants.NonceLength), r.Bool());
+        var ver = r.U16();
+        var name = r.Str(ProtocolConstants.MaxNameChars);
+        var nonce = r.Fixed(ProtocolConstants.NonceLength);
+        var mode = r.U8();
+        if (mode > (byte)AuthMode.Permanent) throw new ProtocolException("invalid auth mode");
         r.EnsureEnd();
-        return m;
+        return new HelloMessage(ver, name, nonce, (AuthMode)mode);
     }
 }
 
@@ -95,16 +114,18 @@ public sealed record AuthResultMessage(bool Success, AuthFailure Failure, byte[]
     }
 }
 
-public sealed record ConsentRequestMessage(Permissions Requested)
+public sealed record ConsentRequestMessage(Permissions Requested, VideoCodecs Codecs = VideoCodecs.TileJpeg)
 {
-    public byte[] Serialize() => new ProtoWriter().U8((byte)Requested).ToArray();
+    public byte[] Serialize() => new ProtoWriter().U8((byte)Requested).U8((byte)Codecs).ToArray();
 
     public static ConsentRequestMessage Parse(byte[] p)
     {
         var r = new ProtoReader(p);
-        var m = new ConsentRequestMessage(ParsePermissions(r.U8()));
+        var perms = ParsePermissions(r.U8());
+        var codecs = r.U8();
+        if ((codecs & ~3) != 0 || (codecs & 1) == 0) throw new ProtocolException("invalid codec set (tile codec is mandatory)");
         r.EnsureEnd();
-        return m;
+        return new ConsentRequestMessage(perms, (VideoCodecs)codecs);
     }
 
     internal static Permissions ParsePermissions(byte b)
@@ -115,9 +136,13 @@ public sealed record ConsentRequestMessage(Permissions Requested)
 }
 
 /// <param name="ResumeToken">High-entropy single-use ticket (ASCII hex) the viewer can use to resume after a network drop; empty when denied.</param>
-public sealed record ConsentResultMessage(bool Granted, Permissions GrantedPermissions, ByeReason DenyReason, byte[]? ResumeToken = null)
+/// <param name="Codec">The single codec the host will start the video stream with.</param>
+/// <param name="Recording">True when the host records this session (the viewer must show a REC indicator).</param>
+public sealed record ConsentResultMessage(bool Granted, Permissions GrantedPermissions, ByeReason DenyReason, byte[]? ResumeToken = null,
+    VideoCodecs Codec = VideoCodecs.TileJpeg, bool Recording = false)
 {
-    public byte[] Serialize() => new ProtoWriter().Bool(Granted).U8((byte)GrantedPermissions).U8((byte)DenyReason).Bytes(ResumeToken ?? Array.Empty<byte>()).ToArray();
+    public byte[] Serialize() => new ProtoWriter().Bool(Granted).U8((byte)GrantedPermissions).U8((byte)DenyReason).Bytes(ResumeToken ?? Array.Empty<byte>())
+        .U8((byte)Codec).Bool(Recording).ToArray();
 
     public static ConsentResultMessage Parse(byte[] p)
     {
@@ -127,8 +152,11 @@ public sealed record ConsentResultMessage(bool Granted, Permissions GrantedPermi
         var reason = r.U8();
         if (reason > (byte)ByeReason.Emergency) throw new ProtocolException("invalid reason");
         var token = r.Bytes(64);
+        var codec = r.U8();
+        if (codec is not (1 or 2)) throw new ProtocolException("invalid codec");
+        var rec = r.Bool();
         r.EnsureEnd();
-        return new ConsentResultMessage(g, perms, (ByeReason)reason, token);
+        return new ConsentResultMessage(g, perms, (ByeReason)reason, token, (VideoCodecs)codec, rec);
     }
 }
 
@@ -350,5 +378,56 @@ public sealed record FileAckMessage(uint TransferId, FileStatus Status, ulong Re
         var m = new FileAckMessage(id, (FileStatus)st, r.U64());
         r.EnsureEnd();
         return m;
+    }
+}
+
+public enum SpecialKeyKind : byte { CtrlAltDel = 0 }
+
+/// <summary>Key combinations the viewer cannot inject with ordinary input (needs the service: SendSAS).</summary>
+public sealed record SpecialKeyMessage(SpecialKeyKind Kind)
+{
+    public byte[] Serialize() => new ProtoWriter().U8((byte)Kind).ToArray();
+
+    public static SpecialKeyMessage Parse(byte[] p)
+    {
+        var r = new ProtoReader(p);
+        var k = r.U8();
+        if (k > (byte)SpecialKeyKind.CtrlAltDel) throw new ProtocolException("invalid special key");
+        r.EnsureEnd();
+        return new SpecialKeyMessage((SpecialKeyKind)k);
+    }
+}
+
+/// <summary>One H.264 access unit (Annex B). The first frame after (re)start of the codec is always a keyframe with SPS/PPS.</summary>
+public sealed record VideoFrameMessage(byte MonitorIndex, uint Sequence, int Width, int Height, bool Keyframe, byte[] Data)
+{
+    public byte[] Serialize() => new ProtoWriter().U8(MonitorIndex).U32(Sequence).U16((ushort)Width).U16((ushort)Height).Bool(Keyframe).Bytes(Data).ToArray();
+
+    public static VideoFrameMessage Parse(byte[] p)
+    {
+        var r = new ProtoReader(p);
+        var m = new VideoFrameMessage(r.U8(), r.U32(), r.U16(), r.U16(), r.Bool(), Array.Empty<byte>());
+        if (m.Width == 0 || m.Height == 0) throw new ProtocolException("invalid frame size");
+        var data = r.Bytes(ProtocolConstants.MaxRectJpegBytes);
+        r.EnsureEnd();
+        return m with { Data = data };
+    }
+}
+
+/// <summary>
+/// "From now on use this codec." Host→viewer announces a switch (fallback after an encoder failure); viewer→host asks for the tile codec
+/// when its decoder fails. The next frame after a switch is always a keyframe.
+/// </summary>
+public sealed record CodecSwitchMessage(VideoCodecs Codec)
+{
+    public byte[] Serialize() => new ProtoWriter().U8((byte)Codec).ToArray();
+
+    public static CodecSwitchMessage Parse(byte[] p)
+    {
+        var r = new ProtoReader(p);
+        var c = r.U8();
+        if (c is not (1 or 2)) throw new ProtocolException("invalid codec");
+        r.EnsureEnd();
+        return new CodecSwitchMessage((VideoCodecs)c);
     }
 }

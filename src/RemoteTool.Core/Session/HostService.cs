@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using RemoteTool.Core.Audit;
+using RemoteTool.Core.Recording;
 using RemoteTool.Core.Protocol;
 using RemoteTool.Core.Security;
 
@@ -37,6 +38,10 @@ public sealed partial class HostService : IAsyncDisposable
     private readonly string _receiveDirectory;
     private readonly TimeProvider _time;
     private ResumeTicket? _ticket;
+    private readonly IPermanentCredential? _permanent;
+    private readonly IUnattendedPolicy? _unattended;
+    private readonly ISessionRecorderFactory? _recorderFactory;
+    private readonly FailureBreaker _breaker;
 
     /// <summary>Single-use credential letting the same viewer resume after a network drop without a new password/consent dialog.</summary>
     private sealed class ResumeTicket
@@ -50,8 +55,13 @@ public sealed partial class HostService : IAsyncDisposable
     public HostService(Func<IFrameProducer> producerFactory, Func<IInputInjector> injectorFactory, IConsentProvider consent,
         IAuditLog audit, HostPolicy policy, AuthLockout? lockout = null,
         Func<IClipboardAccess>? clipboardFactory = null, IFileTransferPrompt? filePrompt = null, string? receiveDirectory = null,
-        TimeProvider? time = null)
+        TimeProvider? time = null,
+        IPermanentCredential? permanentCredential = null, IUnattendedPolicy? unattended = null, ISessionRecorderFactory? recorderFactory = null)
     {
+        _permanent = permanentCredential;
+        _unattended = unattended;
+        _recorderFactory = recorderFactory;
+        _breaker = new FailureBreaker(time: time);
         _clipboardFactory = clipboardFactory;
         _filePrompt = filePrompt;
         _receiveDirectory = receiveDirectory ?? Path.Combine(Path.GetTempPath(), "RemoteTool Received");
@@ -163,9 +173,9 @@ public sealed partial class HostService : IAsyncDisposable
             {
                 await writer.WriteAsync(MessageType.AuthResult, new AuthResultMessage(true, AuthFailure.None, auth.HostProof).Serialize(), token).ConfigureAwait(false);
                 reader.MaxPayload = ProtocolConstants.MaxFramePayload;
-                if (auth.Resumed is null) RotatePassword(); // single-use: the password that was just accepted is dead from now on
+                if (auth.Mode == AuthMode.OneTimePassword) RotatePassword(); // single-use: the password that was just accepted is dead from now on
                 _lockout.RegisterSuccess(origin.SourceKey);
-                _audit.Write("auth_success", ("source", origin.Display), ("viewer", auth.ViewerName), ("resume", auth.Resumed is not null));
+                _audit.Write("auth_success", ("source", origin.Display), ("viewer", auth.ViewerName), ("mode", auth.Mode));
                 await RunSessionAsync(ch, reader, writer, origin, auth, token).ConfigureAwait(false);
             }
             finally { _sessionGate.Release(); }
@@ -183,7 +193,7 @@ public sealed partial class HostService : IAsyncDisposable
         }
     }
 
-    private sealed record AuthOutcome(string ViewerName, byte[] HostProof, ResumeTicket? Resumed);
+    private sealed record AuthOutcome(string ViewerName, byte[] HostProof, ResumeTicket? Resumed, AuthMode Mode);
 
     /// <summary>Hello -> challenge -> proof check. Returns null (after replying) on any failure.</summary>
     private async Task<AuthOutcome?> AuthenticateAsync(SecureChannel ch, FrameReader reader, FrameWriter writer, PeerOrigin origin, CancellationToken ct)
@@ -199,41 +209,60 @@ public sealed partial class HostService : IAsyncDisposable
             return null;
         }
 
-        // Password mode: the current one-time password. Resume mode: the (high-entropy) resume ticket, if one is valid.
-        // An unknown/expired ticket still runs the full computation against a random secret so failures look identical.
-        var ticket = hello.Resume ? _ticket : null;
+        // Which secret is the viewer proving?
+        //  OneTimePassword: the current one-time password.   Resume: the (high-entropy) resume ticket, if one is valid.
+        //  Permanent: the stored unattended key (service only).
+        // Unknown/expired/disabled secrets still run a full, indistinguishable computation against random material.
+        var mode = hello.Mode;
+        var ticket = mode == AuthMode.Resume ? _ticket : null;
         if (ticket is not null && ticket.ExpiresAt is { } exp && exp <= _time.GetUtcNow()) ticket = null;
-        var password = hello.Resume ? (ticket?.Secret ?? Convert.ToHexString(RandomNumberGenerator.GetBytes(24))) : Password;
+        var permanentOk = mode == AuthMode.Permanent && _permanent is { Enabled: true } && _unattended is not null && !_breaker.IsTripped;
+        if (mode == AuthMode.Permanent && !permanentOk)
+            _audit.Write("unattended_unavailable", ("source", origin.Display), ("reason", _unattended is null ? "not-a-service" : _breaker.IsTripped ? "breaker" : "no-password"));
+
         var nonceH = RandomNumberGenerator.GetBytes(ProtocolConstants.NonceLength);
-        var salt = RandomNumberGenerator.GetBytes(ProtocolConstants.SaltLength);
+        var salt = permanentOk ? _permanent!.Salt : RandomNumberGenerator.GetBytes(ProtocolConstants.SaltLength);
         var name = NameSanitizer.Clean(Policy.DisplayName, "host");
         await writer.WriteAsync(MessageType.AuthChallenge, new AuthChallengeMessage(name, nonceH, salt).Serialize(), hs.Token).ConfigureAwait(false);
 
         var resp = AuthResponseMessage.Parse(await ReadExpected(reader, MessageType.AuthResponse, hs.Token).ConfigureAwait(false));
-        var key = await Task.Run(() => PasswordHandshake.DeriveKey(password, salt), hs.Token).ConfigureAwait(false);
+        byte[] key;
+        if (permanentOk) key = _permanent!.Key;
+        else
+        {
+            var secret = mode switch
+            {
+                AuthMode.Resume => ticket?.Secret ?? Convert.ToHexString(RandomNumberGenerator.GetBytes(24)),
+                AuthMode.Permanent => Convert.ToHexString(RandomNumberGenerator.GetBytes(24)),
+                _ => Password, // one-time password; a rotation mid-handshake invalidates this attempt naturally
+            };
+            key = await Task.Run(() => PasswordHandshake.DeriveKey(secret, salt), hs.Token).ConfigureAwait(false);
+        }
         // Fingerprints from the host's perspective: viewer = remote, host = local.
         var expected = PasswordHandshake.ViewerProof(key, hello.Nonce, nonceH, ch.RemoteFingerprint, ch.LocalFingerprint);
-        if (!PasswordHandshake.ConstantTimeEquals(expected, resp.Proof))
+        if (!PasswordHandshake.ConstantTimeEquals(expected, resp.Proof) || (mode == AuthMode.Resume && ticket is null))
         {
             var blockedNow = _lockout.RegisterFailure(origin.SourceKey);
-            _audit.Write("auth_failure", ("source", origin.Display), ("viewer", hello.ViewerName), ("blocked", blockedNow));
+            _audit.Write("auth_failure", ("source", origin.Display), ("viewer", hello.ViewerName), ("blocked", blockedNow), ("mode", mode));
             if (blockedNow)
             {
                 _audit.Write("source_blocked", ("source", origin.Display), ("minutes", (int)AuthLockout.BlockDuration.TotalMinutes));
-                RotatePassword();
+                if (mode == AuthMode.OneTimePassword) RotatePassword();
             }
+            if (mode == AuthMode.Permanent && permanentOk && _breaker.RegisterFailure())
+                _audit.Write("unattended_breaker_tripped", ("minutes", 15)); // distributed guessing: unattended logins paused for the window
             await writer.WriteAsync(MessageType.AuthResult,
                 new AuthResultMessage(false, blockedNow ? AuthFailure.Blocked : AuthFailure.BadPassword, zero).Serialize(), hs.Token).ConfigureAwait(false);
             return null;
         }
-        if (hello.Resume && Interlocked.CompareExchange(ref _ticket, null, ticket) != ticket)
+        if (mode == AuthMode.Resume && Interlocked.CompareExchange(ref _ticket, null, ticket) != ticket)
         {
             // lost a race with another resume attempt: the ticket is single-use
             await writer.WriteAsync(MessageType.AuthResult, new AuthResultMessage(false, AuthFailure.BadPassword, zero).Serialize(), hs.Token).ConfigureAwait(false);
             return null;
         }
         var hostProof = PasswordHandshake.HostProof(key, hello.Nonce, nonceH, ch.RemoteFingerprint, ch.LocalFingerprint);
-        return new AuthOutcome(NameSanitizer.Clean(hello.ViewerName, "viewer"), hostProof, hello.Resume ? ticket : null);
+        return new AuthOutcome(NameSanitizer.Clean(hello.ViewerName, "viewer"), hostProof, mode == AuthMode.Resume ? ticket : null, mode);
     }
 
     private static async Task<byte[]> ReadExpected(FrameReader r, MessageType t, CancellationToken ct)

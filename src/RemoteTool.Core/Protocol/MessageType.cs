@@ -22,6 +22,9 @@ public enum MessageType : byte
     Pong = 17,
     Bye = 18,
     MonitorSelect = 19,
+    SpecialKey = 20,
+    VideoFrame = 21,
+    CodecSwitch = 22,
 }
 
 /// <summary>Relay control message types (outer TLS link to the relay). Disjoint range from <see cref="MessageType"/>.</summary>
@@ -42,6 +45,6 @@ public enum RelayMessageType : byte
 
 public static class MessageTypes
 {
-    public static bool IsKnownPeer(byte t) => t is >= 1 and <= 19;
+    public static bool IsKnownPeer(byte t) => t is >= 1 and <= 22;
     public static bool IsKnownRelay(byte t) => t is >= 0x80 and <= 0x8A;
 }

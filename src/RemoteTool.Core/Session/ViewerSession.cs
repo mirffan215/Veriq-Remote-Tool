@@ -26,6 +26,11 @@ public sealed class ViewerSession : IAsyncDisposable
     /// <summary>Single-use ticket for <see cref="ViewerReconnect"/>; changes with every (re)connect. Treat like a password.</summary>
     public string ResumeToken { get; private set; } = "";
     public byte ActiveMonitor { get; private set; }
+    /// <summary>Codec currently used for the video stream (may fall back to tiles mid-session).</summary>
+    public VideoCodecs Codec { get; private set; } = VideoCodecs.TileJpeg;
+    /// <summary>True when the host records this session: the UI must show a clear REC indicator.</summary>
+    public bool Recording { get; private set; }
+    private IH264Decoder? _decoder;
     public Permissions Permissions { get; }
     public ScreenInfoMessage? Screen { get; private set; }
     public TimeSpan Latency => _pump.Latency;
@@ -38,6 +43,9 @@ public sealed class ViewerSession : IAsyncDisposable
     public event Action<ByeReason, string>? Ended;
     /// <summary>A file arrived from the host and passed its SHA-256 check (final path).</summary>
     public event Action<string>? FileReceived;
+    /// <summary>H.264 path: a fully decoded frame (BGRA, tight stride).</summary>
+    public event Action<DecodedFrame>? FullFrameReceived;
+    public event Action<VideoCodecs>? CodecChanged;
 
     private ViewerSession(SecureChannel ch, FrameReader r, FrameWriter w, string hostName, Permissions perms, IAuditLog audit)
     {
@@ -54,7 +62,7 @@ public sealed class ViewerSession : IAsyncDisposable
     /// Runs TLS + password handshake + consent over an already-connected transport (direct TCP or relay splice).
     /// </summary>
     public static async Task<ViewerSession> ConnectAsync(Stream transport, string viewerName, string password, IAuditLog audit,
-        Permissions requested, CancellationToken ct, bool resume = false)
+        Permissions requested, CancellationToken ct, bool resume = false, bool permanent = false, VideoCodecs codecs = VideoCodecs.TileJpeg)
     {
         using var cert = EphemeralCertificate.Create("RemoteTool viewer");
         SecureChannel ch;
@@ -78,7 +86,7 @@ public sealed class ViewerSession : IAsyncDisposable
             hs.CancelAfter(ProtocolConstants.HandshakeTimeout);
 
             var nonceV = RandomNumberGenerator.GetBytes(ProtocolConstants.NonceLength);
-            await writer.WriteAsync(MessageType.Hello, new HelloMessage(ProtocolConstants.Version, NameSanitizer.Clean(viewerName, "viewer"), nonceV, resume).Serialize(), hs.Token).ConfigureAwait(false);
+            await writer.WriteAsync(MessageType.Hello, new HelloMessage(ProtocolConstants.Version, NameSanitizer.Clean(viewerName, "viewer"), nonceV, permanent ? AuthMode.Permanent : resume ? AuthMode.Resume : AuthMode.OneTimePassword).Serialize(), hs.Token).ConfigureAwait(false);
 
             var challenge = AuthChallengeMessage.Parse(await Expect(reader, MessageType.AuthChallenge, hs.Token).ConfigureAwait(false));
             var key = await Task.Run(() => PasswordHandshake.DeriveKey(password, challenge.Salt), hs.Token).ConfigureAwait(false);
@@ -93,13 +101,15 @@ public sealed class ViewerSession : IAsyncDisposable
                     "The remote peer could not prove it knows the password (possible man-in-the-middle). Connection aborted.");
             reader.MaxPayload = ProtocolConstants.MaxFramePayload;
 
-            await writer.WriteAsync(MessageType.ConsentRequest, new ConsentRequestMessage(requested).Serialize(), hs.Token).ConfigureAwait(false);
+            await writer.WriteAsync(MessageType.ConsentRequest, new ConsentRequestMessage(requested, codecs | VideoCodecs.TileJpeg).Serialize(), hs.Token).ConfigureAwait(false);
             using var consentCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             consentCts.CancelAfter(ProtocolConstants.ConsentTimeout + TimeSpan.FromSeconds(30));
             var consent = ConsentResultMessage.Parse(await Expect(reader, MessageType.ConsentResult, consentCts.Token).ConfigureAwait(false));
             if (!consent.Granted) throw new ConnectFailedException(ConnectFailure.Denied, "The remote user denied the connection.");
 
             var s = new ViewerSession(ch, reader, writer, challenge.HostName, consent.GrantedPermissions, audit);
+            s.Codec = consent.Codec;
+            s.Recording = consent.Recording;
             s.ResumeToken = consent.ResumeToken is { Length: > 0 } t ? System.Text.Encoding.ASCII.GetString(t) : "";
             audit.Write("session_start", ("session", s._id), ("host", s.HostName), ("permissions", consent.GrantedPermissions));
             return s; // caller subscribes to events, then calls Start() so the first keyframe cannot be missed
@@ -164,6 +174,13 @@ public sealed class ViewerSession : IAsyncDisposable
             case MessageType.CursorUpdate:
                 CursorChanged?.Invoke(CursorUpdateMessage.Parse(f.Payload).Shape);
                 break;
+            case MessageType.VideoFrame:
+                await OnVideoFrameAsync(VideoFrameMessage.Parse(f.Payload)).ConfigureAwait(false);
+                break;
+            case MessageType.CodecSwitch:
+                Codec = CodecSwitchMessage.Parse(f.Payload).Codec;
+                CodecChanged?.Invoke(Codec);
+                break;
             case MessageType.ClipboardData:
                 ClipboardDataMessage.Parse(f.Payload);
                 _clipboard?.Receive(f.Payload);
@@ -177,6 +194,36 @@ public sealed class ViewerSession : IAsyncDisposable
                 throw new ProtocolException($"unexpected {(MessageType)f.Type} from host");
         }
     }
+
+    /// <summary>Provide the decoder before <see cref="Start"/>; only needed if H.264 was offered in <c>codecs</c>.</summary>
+    public void AttachH264Decoder(IH264Decoder decoder) => _decoder = decoder;
+
+    private async Task OnVideoFrameAsync(VideoFrameMessage v)
+    {
+        if (Codec != VideoCodecs.H264 || _decoder is null)
+        {
+            // We never offered/accepted H.264 (or lost the decoder): drop and insist on tiles.
+            await RequestTileCodecAsync().ConfigureAwait(false);
+            return;
+        }
+        DecodedFrame? frame;
+        DecodeStatus st;
+        try { st = _decoder.TryDecode(v.Data, v.Keyframe, out frame); }
+        catch (Exception e) when (e is not OutOfMemoryException) { st = DecodeStatus.Failed; frame = null; }
+        if (st == DecodeStatus.Frame && frame is not null) FullFrameReceived?.Invoke(frame);
+        else if (st == DecodeStatus.Failed) await RequestTileCodecAsync().ConfigureAwait(false);
+    }
+
+    private async Task RequestTileCodecAsync()
+    {
+        if (Codec == VideoCodecs.TileJpeg) return;
+        Codec = VideoCodecs.TileJpeg;
+        _audit.Write("codec_fallback", ("by", "viewer"));
+        CodecChanged?.Invoke(Codec);
+        await SafeSend(MessageType.CodecSwitch, new CodecSwitchMessage(VideoCodecs.TileJpeg).Serialize()).ConfigureAwait(false);
+    }
+
+    public Task SendSpecialKeyAsync(SpecialKeyKind kind) => (Permissions & Permissions.Control) == 0 ? Task.CompletedTask : SafeSend(MessageType.SpecialKey, new SpecialKeyMessage(kind).Serialize());
 
     /// <summary>Enable clipboard sync (needs the Clipboard permission). Call before <see cref="Start"/>.</summary>
     public void AttachClipboard(IClipboardAccess clipboard)
@@ -221,7 +268,7 @@ public sealed class ViewerSession : IAsyncDisposable
         if (Interlocked.Exchange(ref _ended, 1) == 1) return;
         _audit.Write("session_end", ("session", _id), ("reason", reason), ("durationSeconds", (int)(DateTimeOffset.UtcNow - _started).TotalSeconds),
             ("bytesIn", BytesReceived), ("bytesOut", BytesSent));
-        try { _files?.Dispose(); _clipboard?.Dispose(); } catch { }
+        try { _files?.Dispose(); _clipboard?.Dispose(); _decoder?.Dispose(); } catch { }
         try { _channel.Stream.Dispose(); } catch { }
         Ended?.Invoke(reason, text);
     }

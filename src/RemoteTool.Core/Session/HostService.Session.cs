@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using RemoteTool.Core.Protocol;
+using RemoteTool.Core.Recording;
 
 namespace RemoteTool.Core.Session;
 
@@ -13,16 +14,20 @@ public sealed partial class HostService
     {
         public volatile MonitorInfo Monitor = null!;
         public int KeyframeRequested = 1;
+        public int Codec = (int)VideoCodecs.TileJpeg;
         public IReadOnlyList<MonitorInfo> Monitors = Array.Empty<MonitorInfo>();
+        public ISessionRecorder? Recorder;
     }
 
-    /// <summary>Consent (or automatic grant when resuming), then the streaming/input phase. Runs while the session gate is held.</summary>
+    /// <summary>Consent (or automatic grant when resuming / unattended), then the streaming/input phase. Runs while the session gate is held.</summary>
     private async Task RunSessionAsync(Security.SecureChannel ch, FrameReader reader, FrameWriter writer, PeerOrigin origin, AuthOutcome auth, CancellationToken ct)
     {
         var viewerName = auth.ViewerName;
-        var requestPayload = await ReadExpectedAsync(reader, MessageType.ConsentRequest, TimeSpan.FromSeconds(20), ct).ConfigureAwait(false);
-        var requested = ConsentRequestMessage.Parse(requestPayload).Requested;
-        var allowed = Policy.Allowed;
+        var req = ConsentRequestMessage.Parse(await ReadExpectedAsync(reader, MessageType.ConsentRequest, TimeSpan.FromSeconds(20), ct).ConfigureAwait(false));
+        var requested = req.Requested;
+        var unattendedSession = auth.Mode == AuthMode.Permanent;
+        // An unattended session never gets more than the service-level unattended policy, whatever the viewer asks for.
+        var allowed = unattendedSession ? Policy.Allowed & _unattended!.Permissions : Policy.Allowed;
 
         ConsentDecision decision;
         if (auth.Resumed is { } old)
@@ -35,30 +40,39 @@ public sealed partial class HostService
         {
             using var consentCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             consentCts.CancelAfter(ProtocolConstants.ConsentTimeout);
+            var ask = new ConsentRequestInfo(viewerName, origin.Display, origin.ViaRelay, requested, allowed, Recording: _recorderFactory is not null);
             try
             {
-                decision = await _consent.RequestAsync(new ConsentRequestInfo(viewerName, origin.Display, origin.ViaRelay, requested, allowed), consentCts.Token).ConfigureAwait(false);
+                decision = unattendedSession
+                    ? await _unattended!.DecideAsync(ask, consentCts.Token).ConfigureAwait(false)
+                    : await _consent.RequestAsync(ask, consentCts.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested) { decision = new ConsentDecision(false, Permissions.None); }
         }
 
         var granted = decision.Granted ? decision.Permissions & allowed & requested : Permissions.None;
         // Clicking Allow with every box cleared is a valid view-only grant.
-        var allow = decision.Granted;
-        if (!allow)
+        if (!decision.Granted)
         {
-            _audit.Write("consent_denied", ("source", origin.Display), ("viewer", viewerName));
+            _audit.Write("consent_denied", ("source", origin.Display), ("viewer", viewerName), ("unattended", unattendedSession));
             await writer.WriteAsync(MessageType.ConsentResult, new ConsentResultMessage(false, Permissions.None, ByeReason.Denied).Serialize(), ct).ConfigureAwait(false);
             return;
         }
 
-        var ticket = new ResumeTicket { Secret = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)), Permissions = granted, ViewerName = viewerName };
-        _ticket = ticket;
-        await writer.WriteAsync(MessageType.ConsentResult, new ConsentResultMessage(true, granted, ByeReason.Normal, Encoding.ASCII.GetBytes(ticket.Secret)).Serialize(), ct).ConfigureAwait(false);
+        using var producer = _producerFactory();
+        using var injector = _injectorFactory();
+        var codec = (req.Codecs & VideoCodecs.H264) != 0 && producer is IH264Source { H264Available: true } ? VideoCodecs.H264 : VideoCodecs.TileJpeg;
 
         var info = new SessionInfo(Guid.NewGuid(), viewerName, origin.Display, granted, DateTimeOffset.UtcNow);
-        _audit.Write("consent_granted", ("session", info.Id), ("source", origin.Display), ("viewer", viewerName), ("permissions", granted));
+        var recorder = _recorderFactory?.Create(info, Policy.DisplayName);
+        var ticket = new ResumeTicket { Secret = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)), Permissions = granted, ViewerName = viewerName };
+        _ticket = ticket;
+        await writer.WriteAsync(MessageType.ConsentResult,
+            new ConsentResultMessage(true, granted, ByeReason.Normal, Encoding.ASCII.GetBytes(ticket.Secret), codec, recorder is not null).Serialize(), ct).ConfigureAwait(false);
+
+        _audit.Write("consent_granted", ("session", info.Id), ("source", origin.Display), ("viewer", viewerName), ("permissions", granted), ("unattended", unattendedSession), ("codec", codec));
         _audit.Write("session_start", ("session", info.Id), ("viewer", viewerName), ("source", origin.Display), ("permissions", granted));
+        if (recorder is not null) _audit.Write("recording_started", ("session", info.Id));
 
         using var activeCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         _activeCts = activeCts;
@@ -66,14 +80,12 @@ public sealed partial class HostService
         ActiveSession = info;
         var sw = Stopwatch.StartNew();
         var endReason = ByeReason.Normal;
-        using var producer = _producerFactory();
-        using var injector = _injectorFactory();
         FileTransferService? files = null;
         ClipboardSync? clipboard = null;
         try
         {
             SessionStarted?.Invoke(info);
-            var state = new SessionState { Monitors = producer.GetMonitors() };
+            var state = new SessionState { Monitors = producer.GetMonitors(), Codec = (int)codec, Recorder = recorder };
             state.Monitor = state.Monitors.FirstOrDefault(m => m.Primary) ?? state.Monitors[0];
             await writer.WriteAsync(MessageType.ScreenInfo, new ScreenInfoMessage(state.Monitors, state.Monitor.Index).Serialize(), activeCts.Token).ConfigureAwait(false);
 
@@ -85,7 +97,7 @@ public sealed partial class HostService
                 clipboard.Start();
             }
 
-            var pump = new SessionPump(reader, writer, f => HandleViewerFrame(f, granted, injector, state, writer, files, clipboard, activeCts.Token));
+            var pump = new SessionPump(reader, writer, f => HandleViewerFrame(f, granted, injector, state, writer, files, clipboard, info, activeCts.Token));
             var video = VideoLoopAsync(producer, writer, state, activeCts.Token);
             Task<ByeMessage?> read = pump.RunAsync(activeCts.Token);
             try
@@ -114,6 +126,12 @@ public sealed partial class HostService
             files?.Dispose();
             _activeFiles = null;
             if (endReason == ByeReason.Normal && activeCts.IsCancellationRequested) endReason = _activeEndReason;
+            if (recorder is not null)
+            {
+                var done = recorder.Complete(endReason.ToString());
+                recorder.Dispose();
+                if (done is { } d) _audit.Write("recording_stopped", ("session", info.Id), ("file", Path.GetFileName(d.Path)), ("sha256", d.Sha256));
+            }
             // Only an abnormal end (network loss) keeps the resume ticket alive, and only for a short window.
             if (ReferenceEquals(_ticket, ticket))
             {
@@ -144,7 +162,7 @@ public sealed partial class HostService
     }
 
     private async ValueTask HandleViewerFrame(Frame f, Permissions granted, IInputInjector injector, SessionState state, FrameWriter writer,
-        FileTransferService? files, ClipboardSync? clipboard, CancellationToken ct)
+        FileTransferService? files, ClipboardSync? clipboard, SessionInfo info, CancellationToken ct)
     {
         switch ((MessageType)f.Type)
         {
@@ -155,6 +173,23 @@ public sealed partial class HostService
             case MessageType.KeyEvent:
                 var k = KeyEventMessage.Parse(f.Payload);
                 if ((granted & Permissions.Control) != 0) injector.Key(k);
+                break;
+            case MessageType.SpecialKey:
+                SpecialKeyMessage.Parse(f.Payload);
+                if ((granted & Permissions.Control) != 0 && injector is ISpecialKeys sk)
+                {
+                    _audit.Write("special_key", ("session", info.Id), ("kind", "CtrlAltDel"));
+                    sk.SendCtrlAltDel();
+                }
+                else _audit.Write("special_key_unavailable", ("session", info.Id));
+                break;
+            case MessageType.CodecSwitch:
+                // Viewer's decoder failed: it asks for the mandatory tile codec. Anything else is ignored (the host decides on H.264).
+                if (CodecSwitchMessage.Parse(f.Payload).Codec == VideoCodecs.TileJpeg && Interlocked.Exchange(ref state.Codec, (int)VideoCodecs.TileJpeg) != (int)VideoCodecs.TileJpeg)
+                {
+                    Interlocked.Exchange(ref state.KeyframeRequested, 1);
+                    _audit.Write("codec_fallback", ("session", info.Id), ("by", "viewer"));
+                }
                 break;
             case MessageType.MonitorSelect:
                 var sel = MonitorSelectMessage.Parse(f.Payload);
@@ -184,7 +219,7 @@ public sealed partial class HostService
         }
     }
 
-    /// <summary>Captures and sends updates, adapting JPEG quality and frame rate to how fast the link drains.</summary>
+    /// <summary>Captures and sends updates (H.264 when negotiated and healthy, tile-JPEG otherwise), adapting to how fast the link drains.</summary>
     private async Task VideoLoopAsync(IFrameProducer producer, FrameWriter writer, SessionState state, CancellationToken ct)
     {
         var adaptive = new AdaptiveQuality();
@@ -195,11 +230,36 @@ public sealed partial class HostService
             var monitor = state.Monitor;
             var key = Interlocked.Exchange(ref state.KeyframeRequested, 0) == 1;
             var quality = adaptive.Quality;
-            var frame = await Task.Run(() => producer.NextFrame(monitor.Index, quality, key), ct).ConfigureAwait(false);
-            if (frame is not null)
+            byte[]? payload = null;
+            MessageType type = MessageType.FrameUpdate;
+
+            if ((VideoCodecs)Volatile.Read(ref state.Codec) == VideoCodecs.H264 && producer is IH264Source h264)
+            {
+                try
+                {
+                    var vf = await Task.Run(() => h264.NextH264(monitor.Index, key, 800 + (quality - AdaptiveQuality.MinQuality) * 100), ct).ConfigureAwait(false);
+                    if (vf is not null) { payload = vf.Serialize(); type = MessageType.VideoFrame; state.Recorder?.WriteVideo(vf); }
+                }
+                catch (CodecUnavailableException e)
+                {
+                    // Encoder died or is unsupported on this GPU/driver: tell the viewer, restart the stream as tiles from a keyframe.
+                    Volatile.Write(ref state.Codec, (int)VideoCodecs.TileJpeg);
+                    _audit.Write("codec_fallback", ("by", "host"), ("reason", e.Message));
+                    await writer.WriteAsync(MessageType.CodecSwitch, new CodecSwitchMessage(VideoCodecs.TileJpeg).Serialize(), ct).ConfigureAwait(false);
+                    Interlocked.Exchange(ref state.KeyframeRequested, 1);
+                    continue;
+                }
+            }
+            else
+            {
+                var frame = await Task.Run(() => producer.NextFrame(monitor.Index, quality, key), ct).ConfigureAwait(false);
+                if (frame is not null) { payload = frame.Serialize(); state.Recorder?.WriteFrame(frame); }
+            }
+
+            if (payload is not null)
             {
                 var sendStart = Stopwatch.GetTimestamp();
-                await writer.WriteAsync(MessageType.FrameUpdate, frame.Serialize(), ct).ConfigureAwait(false);
+                await writer.WriteAsync(type, payload, ct).ConfigureAwait(false);
                 adaptive.Report(Stopwatch.GetElapsedTime(sendStart));
             }
             var s = producer.GetCursorShape();
