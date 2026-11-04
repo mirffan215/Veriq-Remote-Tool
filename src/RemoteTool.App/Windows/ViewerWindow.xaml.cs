@@ -193,7 +193,7 @@ public partial class ViewerWindow : Window
         var now = Stopwatch.GetTimestamp();
         if (Stopwatch.GetElapsedTime(_lastMove, now) < TimeSpan.FromMilliseconds(8)) return; // ~120 Hz cap
         _lastMove = now;
-        if (Normalize(e, out var x, out var y)) _ = _session.SendMouseAsync(new MouseEventMessage(MouseKind.Move, MouseButton.None, x, y, 0));
+        if (Normalize(e, out var x, out var y)) _ = _session.SendMouseAsync(new MouseEventMessage(MouseKind.Move, Core.Protocol.MouseButton.None, x, y, 0));
     }
 
     private void Screen_MouseButton(object sender, MouseButtonEventArgs e)
