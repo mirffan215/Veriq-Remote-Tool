@@ -28,7 +28,6 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         FlowDirection = Loc.Flow;
-        Title = EditionInfo.Current.WindowTitle;
         _store = store;
         _protector = protector;
         _host = host;

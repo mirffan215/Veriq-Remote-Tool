@@ -20,11 +20,10 @@ public sealed record StoragePaths(string SettingsDirectory, string LogDirectory,
             var data = Path.Combine(exeDirectory, "data");
             return new StoragePaths(data, Path.Combine(data, "logs"), true);
         }
-        var folder = EditionInfo.Current.DataFolder;   // each edition keeps its own settings and logs (Production and UAT can run side by side)
-        var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), folder);
-        var logs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), folder, "logs");
+        var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RemoteTool");
+        var logs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "RemoteTool", "logs");
         if (!CanWrite(logs))
-            logs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), folder, "logs");
+            logs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RemoteTool", "logs");
         return new StoragePaths(appData, logs, false);
     }
 

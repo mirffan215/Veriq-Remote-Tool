@@ -1,6 +1,4 @@
 using System.Windows;
-using RemoteTool.App.Services;
-using RemoteTool.Core.Config;
 using RemoteTool.Service.Windows;
 
 namespace RemoteTool.App;
@@ -24,8 +22,6 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
-        EditionInfo.Current = EditionLoader.Load();     // before anything reads settings paths
-
         string? Arg(string name) { var i = Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; }
 
         if (args.Contains("--service")) { RemoteToolWindowsService.RunAsService(); return 0; }

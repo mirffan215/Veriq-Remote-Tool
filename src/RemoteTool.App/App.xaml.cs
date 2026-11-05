@@ -19,7 +19,6 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        EditionCustomization.Startup(this);
         if (Mode == AppMode.Helper) { Services.HelperHost.Start(this, Args); return; }   // no UI of its own: banner/consent only when the service asks
         if (Mode == AppMode.ServiceSetup)
         {
@@ -28,7 +27,7 @@ public partial class App : Application
             MainWindow.Show();
             return;
         }
-        _single = new Mutex(true, @"Local\" + EditionInfo.Current.DataFolder + ".SingleInstance", out var first);
+        _single = new Mutex(true, @"Local\RemoteTool.SingleInstance", out var first);
         if (!first)
         {
             MessageBox.Show(Loc.T("Already_Running"), Loc.T("App_Title"));

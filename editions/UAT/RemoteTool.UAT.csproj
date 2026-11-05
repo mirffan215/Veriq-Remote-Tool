@@ -1,7 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <!-- UAT edition package. All logic is in ..\Edition.Package.targets; this edition's identity is in edition.props next to this file. -->
-  <PropertyGroup>
-    <Edition>UAT</Edition>
-  </PropertyGroup>
-  <Import Project="..\Edition.Package.targets" />
-</Project>
