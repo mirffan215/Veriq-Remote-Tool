@@ -13,6 +13,9 @@ namespace RemoteTool.App.Services;
 public sealed record ViewerContext(string ViewerName, IAuditLog Audit, Func<CancellationToken, Task<Stream>> Redial,
     Func<IClipboardAccess> ClipboardFactory, IFileTransferPrompt Prompt, FileTransferOptions FileOptions, Func<IH264Decoder?> DecoderFactory);
 
+/// <summary>Request = just ask (the other person clicks Accept). Password = the other person gave you a password: try it as their access password, then as their one-time password.</summary>
+public enum ConnectMode { Request, Password }
+
 public sealed class ViewerLauncher
 {
     private readonly SettingsStore _store;
@@ -76,15 +79,28 @@ public sealed class ViewerLauncher
     /// <summary>"Find PCs on this network": every visible RemoteTool PC on the local subnet(s).</summary>
     public Task<IReadOnlyList<LanHost>> FindLanHostsAsync(CancellationToken ct) => LanDiscovery.DiscoverAsync(TimeSpan.FromMilliseconds(1500), ct);
 
-    public async Task<(ViewerSession Session, ViewerContext Context)> ConnectAsync(ConnectTarget target, string password, bool permanent, CancellationToken ct)
+    public async Task<(ViewerSession Session, ViewerContext Context)> ConnectAsync(ConnectTarget target, string secret, ConnectMode mode, Action<string>? onSecurityCode, CancellationToken ct)
     {
         var s = _store.Current;
-        _audit.Write("connection_attempt", ("target", target switch { ConnectTarget.ById b => b.Id, ConnectTarget.Direct d => $"{d.Host}:{d.Port}", _ => "?" }));
-        var transport = await DialAsync(target, ct);
+        _audit.Write("connection_attempt", ("target", target switch { ConnectTarget.ById b => b.Id, ConnectTarget.Direct d => $"{d.Host}:{d.Port}", _ => "?" }), ("mode", mode));
         // Offer H.264 only if this PC can decode it; the host decides and can still fall back to tiles at any time.
         var h264 = s.EnableH264 && Video.H264Support.CreateDecoder() is { } probe ? Dispose(probe) : false;
-        var session = await ViewerSession.ConnectAsync(transport, s.DisplayName, password, _audit, Permissions.All, ct, permanent: permanent,
-            codecs: h264 ? VideoCodecs.TileJpeg | VideoCodecs.H264 : VideoCodecs.TileJpeg);
+        var codecs = h264 ? VideoCodecs.TileJpeg | VideoCodecs.H264 : VideoCodecs.TileJpeg;
+
+        async Task<ViewerSession> Attempt(bool consentOnly, bool permanent)
+        {
+            var transport = await DialAsync(target, ct);
+            return await ViewerSession.ConnectAsync(transport, s.DisplayName, secret, _audit, Permissions.All, ct, permanent: permanent, codecs: codecs,
+                consentOnly: consentOnly, onSecurityCode: onSecurityCode);
+        }
+
+        ViewerSession session;
+        if (mode == ConnectMode.Request) session = await Attempt(consentOnly: true, permanent: false);
+        else
+        {
+            try { session = await Attempt(consentOnly: false, permanent: true); }                                  // their ACCESS password
+            catch (ConnectFailedException e) when (e.Failure == ConnectFailure.BadPassword) { session = await Attempt(consentOnly: false, permanent: false); }   // their one-time password
+        }
         var ctx = new ViewerContext(s.DisplayName, _audit, c => DialAsync(target, c), () => new WindowsClipboard(), _prompt,
             new FileTransferOptions(_receiveDir, Math.Max(1, s.MaxFileTransferMb) * 1024L * 1024), () => Video.H264Support.CreateDecoder());
         return (session, ctx);

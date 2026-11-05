@@ -1,4 +1,4 @@
-# RemoteTool wire protocol (version 3)
+# RemoteTool wire protocol (version 4)
 
 v3 (Phase 3) replaces `Hello.resume` with an auth *mode* byte (adds the permanent/unattended password), adds a codec set to `ConsentRequest`, the chosen codec + a recording flag to `ConsentResult`, and message types 20–22 (`SpecialKey`, `VideoFrame`, `CodecSwitch`). Older peers are refused (`VersionMismatch`).
 
@@ -94,7 +94,15 @@ host rejects the attempt (tested: `ActiveManInTheMiddleIsDetected`). Comparisons
 
 `password normalize` = upper-case, whitespace and `-` removed. Passwords are 8 chars from a 31-symbol alphabet (≈39.6 bits).
 
-Failure codes: 1 BadPassword, 2 Blocked, 3 Busy, 4 VersionMismatch, 5 NotAllowed. One authentication attempt per connection.
+### 4.1 Protocol v4 changes
+* `Hello` carries `nonceCommit = SHA-256(nonceV)` and an `AuthMode` (OneTimePassword, Resume, Permanent, **Consent**). The viewer reveals `nonceV` in `AuthResponse`
+  only after receiving the host's nonce (commit-then-reveal), so neither side can grind the security code.
+* **Consent (click-only) mode**: no password. The key is a public constant, so the proofs only bind the exchange to the channel; the real check is the host user
+  clicking Allow after comparing the 6-digit **security code** `SAS = trunc(HMAC(…, nonceV ‖ nonceH ‖ fpViewer ‖ fpHost))`, shown on both screens.
+  A relay/MITM that terminates TLS produces different certificates on each leg, hence different codes on the two screens. The unattended service refuses this mode.
+* Failure codes: 1 BadPassword, 2 Blocked, 3 Busy, 4 VersionMismatch, 5 NotAllowed, 6 **PasswordRequired** (host configured no click-only access; viewer UI asks for a password).
+
+Failure codes (full list): 1 BadPassword, 2 Blocked, 3 Busy, 4 VersionMismatch, 5 NotAllowed, 6 PasswordRequired. One authentication attempt per connection.
 
 ## 5. Relay control protocol (outer link, frames types 0x80–0x8A)
 

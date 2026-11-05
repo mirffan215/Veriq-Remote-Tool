@@ -8,6 +8,7 @@ using RemoteTool.Core.Config;
 using RemoteTool.Core.Lan;
 using RemoteTool.Core.Protocol;
 using RemoteTool.Core.Relay;
+using RemoteTool.Core.Security;
 using RemoteTool.Core.Session;
 using RemoteTool.Input;
 
@@ -29,7 +30,7 @@ public sealed class HostController : IAsyncDisposable
     public string? LastError { get; private set; }
     public event Action? StateChanged;
 
-    public HostController(Dispatcher ui, SettingsStore store, ISecretProtector protector, IAuditLog audit, string receiveDir)
+    public HostController(Dispatcher ui, SettingsStore store, ISecretProtector protector, IAuditLog audit, string receiveDir, IPermanentCredential access)
     {
         _ui = ui;
         _store = store;
@@ -44,7 +45,9 @@ public sealed class HostController : IAsyncDisposable
             BuildPolicy(),
             clipboardFactory: () => new WindowsClipboard(),
             filePrompt: new UiFilePrompt(ui),
-            receiveDirectory: receiveDir);
+            receiveDirectory: receiveDir,
+            permanentCredential: access,          // optional access password: connect without the Accept click
+            unattended: new UserAccessPolicy());
         Service.PasswordChanged += RaiseChanged;
         Service.RelayStatusChanged += _ => RaiseChanged();
         Service.IdRegenerated += _ => RaiseChanged();

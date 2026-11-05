@@ -126,4 +126,31 @@
  <data name="Lan_Item" xml:space="preserve"><value>{0}  -  {1}  ({2})</value></data>
  <data name="Err_NoRelayNoLan" xml:space="preserve"><value>لم يُعثر على هذا الرمز في الشبكة المحلية، ولا يوجد خادم مرحّل مُعدّ للاتصال عبر الإنترنت.</value></data>
  <data name="Svc_Lan" xml:space="preserve"><value>وضع الشبكة المحلية: السماح باتصالات الشبكة المحلية والاكتشاف (يفتح جدار الحماية للشبكة الفرعية المحلية في الشبكات الخاصة/النطاق فقط)</value></data>
+ <data name="Main_YourAddress" xml:space="preserve"><value>عنوانك</value></data>
+ <data name="Main_RemoteAddress" xml:space="preserve"><value>العنوان البعيد</value></data>
+ <data name="Main_Share" xml:space="preserve"><value>شارك هذا العنوان مع من يريد الاتصال بك. سيُطلب منك القبول.</value></data>
+ <data name="Status_Ready" xml:space="preserve"><value>جاهز لاستقبال الاتصالات</value></data>
+ <data name="Status_Connecting" xml:space="preserve"><value>جارٍ الاتصال…</value></data>
+ <data name="Status_Denied" xml:space="preserve"><value>تعذّر التسجيل: تم رفض الوصول</value></data>
+ <data name="Status_Offline" xml:space="preserve"><value>غير متصل - تحقق من اتصال الإنترنت</value></data>
+ <data name="Status_LanOnly" xml:space="preserve"><value>جاهز على هذه الشبكة</value></data>
+ <data name="Status_NotConfigured" xml:space="preserve"><value>غير متصل بخادم مرحّل - هذه الشبكة فقط</value></data>
+ <data name="Waiting_Accept" xml:space="preserve"><value>بانتظار قبول الطرف الآخر… رمز الأمان: {0}</value></data>
+ <data name="Err_PasswordNeeded" xml:space="preserve"><value>هذا الجهاز يتطلب كلمة مرور. أدخلها أدناه ثم اتصل مجددًا.</value></data>
+ <data name="AccessPw_Header" xml:space="preserve"><value>كلمة المرور (فقط إذا أُعطيت لك)</value></data>
+ <data name="Tab_Recent" xml:space="preserve"><value>الأخيرة</value></data>
+ <data name="Tab_Address" xml:space="preserve"><value>دفتر العناوين</value></data>
+ <data name="Tab_Network" xml:space="preserve"><value>على هذه الشبكة</value></data>
+ <data name="Cancel" xml:space="preserve"><value>إلغاء</value></data>
+ <data name="Close" xml:space="preserve"><value>إغلاق</value></data>
+ <data name="Access_Title" xml:space="preserve"><value>كلمة مرور الوصول</value></data>
+ <data name="Access_Help" xml:space="preserve"><value>اختيارية. أي شخص يعرف كلمة المرور يتصل دون أن تضغط قبول (يبقى الشريط الأحمر وزر قطع الاتصال). اتركها معطّلة لتوافق على كل اتصال بنفسك.</value></data>
+ <data name="Access_Set" xml:space="preserve"><value>تعيين كلمة المرور</value></data>
+ <data name="Access_Clear" xml:space="preserve"><value>إزالة كلمة المرور</value></data>
+ <data name="Access_On" xml:space="preserve"><value>كلمة مرور الوصول: مفعّلة</value></data>
+ <data name="Access_Off" xml:space="preserve"><value>كلمة مرور الوصول: معطّلة - كل اتصال يحتاج قبولك</value></data>
+ <data name="Advanced" xml:space="preserve"><value>متقدم</value></data>
+ <data name="Advanced_Help" xml:space="preserve"><value>غالبًا غير مطلوبة: يمكن لمسؤول النظام ضبطها مسبقًا.</value></data>
+ <data name="Security_Code" xml:space="preserve"><value>رمز الأمان: {0}</value></data>
+ <data name="Security_Code_Warn" xml:space="preserve"><value>اتصال بنقرة واحدة. اطلب من الطرف الآخر قراءة رمز الأمان لديه - يجب أن يطابق هذا الرمز: {0}. إن لم يتطابق فاضغط رفض.</value></data>
 </root>

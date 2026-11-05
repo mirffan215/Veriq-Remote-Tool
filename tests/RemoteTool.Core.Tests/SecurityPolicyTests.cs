@@ -62,7 +62,7 @@ public class SecurityPolicyTests
     [Fact]
     public void ProcessLaunchesAreLimitedToKnownElevationAndAdminTools_NeverShellInterpreted()
     {
-        var allowed = new[] { "src/RemoteTool.Service/Windows/ServiceInstaller.cs", "src/RemoteTool.Service/Windows/WtsHelperLauncher.cs", "src/RemoteTool.App/Windows/MainWindow.xaml.cs" };
+        var allowed = new[] { "src/RemoteTool.Service/Windows/ServiceInstaller.cs", "src/RemoteTool.Service/Windows/WtsHelperLauncher.cs", "src/RemoteTool.App/Windows/SettingsWindow.xaml.cs" };
         var hits = Sources().Where(s => Regex.IsMatch(s.Text, @"Process\.Start\(|new\s+ProcessStartInfo\(")).Select(s => Rel(s.Path)).ToList();
         Assert.Empty(hits.Except(allowed));
         foreach (var s in Sources().Where(x => Rel(x.Path).Contains("ServiceInstaller")))
@@ -71,7 +71,7 @@ public class SecurityPolicyTests
             Assert.Contains("ArgumentList.Add", s.Text);            // arguments are passed as an array, not a concatenated command line
         }
         var shell = Sources().Where(s => Regex.IsMatch(s.Text, @"UseShellExecute\s*=\s*true")).Select(s => Rel(s.Path)).ToList();
-        Assert.Equal(new[] { "src/RemoteTool.App/Windows/MainWindow.xaml.cs" }, shell);   // the UAC "runas" relaunch only
+        Assert.Equal(new[] { "src/RemoteTool.App/Windows/SettingsWindow.xaml.cs" }, shell);   // the UAC "runas" relaunch only
     }
 
     [Fact]

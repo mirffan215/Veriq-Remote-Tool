@@ -2,118 +2,89 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:loc="clr-namespace:RemoteTool.App.Localization"
-        Title="{loc:T App_Title}" Width="580" Height="720" MinWidth="500" MinHeight="560" WindowStartupLocation="CenterScreen">
-  <TabControl x:Name="Tabs">
-    <TabItem Header="{loc:T Tab_Allow}">
-      <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="24,18,24,24">
-          <TextBlock Text="{loc:T Your_Id}" Foreground="{DynamicResource MutedBrush}" />
+        Title="{loc:T App_Title}" Width="780" Height="660" MinWidth="660" MinHeight="560" WindowStartupLocation="CenterScreen">
+  <Grid Margin="24,18,24,18">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Your address -->
+    <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrushX}" BorderThickness="1" CornerRadius="8" Padding="22,16">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <StackPanel>
+          <TextBlock Text="{loc:T Main_YourAddress}" Foreground="{DynamicResource MutedBrush}" />
           <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-            <TextBlock x:Name="IdText" FlowDirection="LeftToRight" FontSize="32" FontWeight="SemiBold" FontFamily="Consolas" VerticalAlignment="Center" />
-            <Button x:Name="CopyIdButton" Content="{loc:T Copy}" Margin="16,0,0,0" VerticalAlignment="Center" Click="CopyId_Click" />
+            <TextBlock x:Name="IdText" FontSize="38" FontWeight="SemiBold" FontFamily="Consolas" Foreground="{DynamicResource AccentBrush}" FlowDirection="LeftToRight" VerticalAlignment="Center" />
+            <Button x:Name="CopyIdButton" Content="{loc:T Copy}" Margin="18,0,0,0" VerticalAlignment="Center" Click="CopyId_Click" />
           </StackPanel>
-
-          <TextBlock Text="{loc:T One_Time_Password}" Foreground="{DynamicResource MutedBrush}" Margin="0,16,0,0" />
-          <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-            <TextBlock x:Name="PasswordText" FlowDirection="LeftToRight" FontSize="28" FontFamily="Consolas" VerticalAlignment="Center" />
-            <Button Content="{loc:T Copy}" Margin="16,0,8,0" VerticalAlignment="Center" Click="CopyPassword_Click" />
-            <Button Content="{loc:T Refresh}" VerticalAlignment="Center" Click="RefreshPassword_Click" />
-          </StackPanel>
-
-          <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-            <Ellipse x:Name="StatusDot" Width="10" Height="10" Fill="Gray" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <TextBlock x:Name="RelayStatusText" />
-          </StackPanel>
-          <TextBlock x:Name="ServiceNote" Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold" />
-          <TextBlock x:Name="DirectStatusText" Margin="0,4,0,0" Foreground="{DynamicResource MutedBrush}" />
-
-          <Border Height="1" Background="{DynamicResource BorderBrushX}" Margin="0,18,0,12" />
-          <TextBlock Text="{loc:T Settings}" FontWeight="SemiBold" FontSize="15" />
-
-          <TextBlock Text="{loc:T Display_Name}" Margin="0,10,0,2" Foreground="{DynamicResource MutedBrush}" />
-          <TextBox x:Name="DisplayNameBox" MaxLength="64" />
-
-          <CheckBox x:Name="ViewOnlyBox" Content="{loc:T Perm_ViewOnly}" Margin="0,12,0,0" />
-          <CheckBox x:Name="ClipboardBox" Content="{loc:T Perm_Clipboard}" />
-          <CheckBox x:Name="FilesBox" Content="{loc:T Perm_Files}" />
-          <CheckBox x:Name="H264Box" Content="{loc:T Setting_H264}" />
-
-          <TextBlock Text="{loc:T Relay_Address}" Margin="0,12,0,2" Foreground="{DynamicResource MutedBrush}" />
-          <TextBox x:Name="RelayAddressBox" FlowDirection="LeftToRight" />
-          <TextBlock Text="{loc:T Relay_Key}" Margin="0,8,0,2" Foreground="{DynamicResource MutedBrush}" />
-          <Grid>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-            <PasswordBox x:Name="RelayKeyBox" FlowDirection="LeftToRight" />
-            <Button Grid.Column="1" Content="{loc:T Clear}" Margin="8,0,0,0" Click="ClearKey_Click" />
-          </Grid>
-          <TextBlock Text="{loc:T Relay_Fingerprint}" Margin="0,8,0,2" Foreground="{DynamicResource MutedBrush}" />
-          <TextBox x:Name="RelayFingerprintBox" FlowDirection="LeftToRight" FontFamily="Consolas" />
-
-          <CheckBox x:Name="DirectBox" Content="{loc:T Direct_Enable}" Margin="0,14,0,0" />
-          <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-            <TextBlock Text="{loc:T Direct_Port}" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <TextBox x:Name="DirectPortBox" FlowDirection="LeftToRight" Width="90" />
-          </StackPanel>
-          <CheckBox x:Name="LanVisibleBox" Content="{loc:T Lan_Visible}" Margin="0,6,0,0" />
-          <CheckBox x:Name="LanFirstBox" Content="{loc:T Lan_First}" />
-          <TextBlock Text="{loc:T Allow_List}" Margin="0,8,0,2" Foreground="{DynamicResource MutedBrush}" />
-          <TextBox x:Name="AllowListBox" FlowDirection="LeftToRight" />
-
-          <TextBlock Text="{loc:T Theme}" Margin="0,12,0,2" Foreground="{DynamicResource MutedBrush}" />
-          <StackPanel Orientation="Horizontal">
-            <RadioButton x:Name="ThemeSystem" Content="{loc:T Theme_System}" GroupName="theme" />
-            <RadioButton x:Name="ThemeLight" Content="{loc:T Theme_Light}" GroupName="theme" />
-            <RadioButton x:Name="ThemeDark" Content="{loc:T Theme_Dark}" GroupName="theme" />
-          </StackPanel>
-
-          <TextBlock Text="{loc:T Setting_Language}" Margin="0,12,0,2" Foreground="{DynamicResource MutedBrush}" />
-          <StackPanel Orientation="Horizontal">
-            <RadioButton x:Name="LangSystem" Content="{loc:T Lang_System}" GroupName="lang" />
-            <RadioButton x:Name="LangEn" Content="{loc:T Lang_En}" GroupName="lang" />
-            <RadioButton x:Name="LangAr" Content="{loc:T Lang_Ar}" GroupName="lang" />
-          </StackPanel>
-
-          <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
-            <Button Content="{loc:T Save}" Style="{StaticResource PrimaryButton}" Click="Save_Click" />
-            <Button Content="{loc:T Generate_Id}" Click="GenerateId_Click" />
-          </StackPanel>
-          <Button Content="{loc:T Svc_Button}" Margin="0,14,0,0" HorizontalAlignment="Left" Click="ServiceSetup_Click" />
-          <TextBlock x:Name="SettingsStatus" Margin="0,8,0,0" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
-        </StackPanel>
-      </ScrollViewer>
-    </TabItem>
-
-    <TabItem Header="{loc:T Tab_Connect}">
-      <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="24,18,24,24">
-          <TextBlock Text="{loc:T Connect_Target}" Foreground="{DynamicResource MutedBrush}" />
-          <TextBox x:Name="TargetBox" FlowDirection="LeftToRight" FontSize="22" FontFamily="Consolas" Margin="0,2,0,0" />
-          <TextBlock Text="{loc:T Connect_Password}" Foreground="{DynamicResource MutedBrush}" Margin="0,12,0,2" />
-          <PasswordBox x:Name="ConnectPasswordBox" FlowDirection="LeftToRight" FontSize="18" FontFamily="Consolas" MaxLength="32" />
-          <CheckBox x:Name="UnattendedBox" Content="{loc:T Connect_Unattended}" Margin="0,10,0,0" />
-          <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-            <Button x:Name="ConnectButton" Content="{loc:T Connect_Button}" Style="{StaticResource PrimaryButton}" Click="Connect_Click" IsDefault="True" />
-          </StackPanel>
-          <TextBlock x:Name="ConnectStatus" Margin="0,10,0,0" TextWrapping="Wrap" />
-
-          <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-            <Button x:Name="LanFindButton" Content="{loc:T Lan_Find}" Click="LanFind_Click" />
-            <TextBlock x:Name="LanStatus" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
-          </StackPanel>
-          <ListBox x:Name="LanList" Height="90" Margin="0,6,0,0" MouseDoubleClick="LanList_DoubleClick" />
-
-          <TextBlock Text="{loc:T Addr_Title}" Foreground="{DynamicResource MutedBrush}" Margin="0,20,0,4" />
-          <ListBox x:Name="AddressList" Height="120" MouseDoubleClick="Address_DoubleClick" />
           <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-            <TextBox x:Name="NicknameBox" FlowDirection="LeftToRight" Width="190" MaxLength="64" ToolTip="{loc:T Addr_Nickname}" />
+            <Ellipse x:Name="StatusDot" Width="10" Height="10" Fill="Gray" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBlock x:Name="StatusText" Foreground="{DynamicResource MutedBrush}" />
+          </StackPanel>
+          <TextBlock Text="{loc:T Main_Share}" Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0" />
+        </StackPanel>
+        <Button x:Name="SettingsButton" Grid.Column="1" Content="{loc:T Settings}" VerticalAlignment="Top" Margin="12,0,0,0" Click="Settings_Click" />
+      </Grid>
+    </Border>
+
+    <!-- Remote address -->
+    <Border Grid.Row="1" Margin="0,14,0,0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrushX}" BorderThickness="1" CornerRadius="8" Padding="22,16">
+      <StackPanel>
+        <TextBlock Text="{loc:T Main_RemoteAddress}" Foreground="{DynamicResource MutedBrush}" />
+        <Grid Margin="0,4,0,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBox x:Name="TargetBox" FontSize="24" FontFamily="Consolas" FlowDirection="LeftToRight" />
+          <Button x:Name="ConnectButton" Grid.Column="1" Content="{loc:T Connect_Button}" Style="{StaticResource PrimaryButton}" IsDefault="True" Margin="10,0,0,0" Padding="26,8" Click="Connect_Click" />
+          <Button x:Name="CancelButton" Grid.Column="1" Content="{loc:T Cancel}" Visibility="Collapsed" Margin="10,0,0,0" Padding="26,8" Click="Cancel_Click" />
+        </Grid>
+        <TextBlock x:Name="ConnectStatus" Margin="0,8,0,0" TextWrapping="Wrap" />
+        <Expander x:Name="PasswordExpander" Header="{loc:T AccessPw_Header}" Margin="0,8,0,0" Foreground="{DynamicResource MutedBrush}">
+          <PasswordBox x:Name="ConnectPasswordBox" FontSize="16" FontFamily="Consolas" MaxLength="32" FlowDirection="LeftToRight" Margin="0,6,0,0" />
+        </Expander>
+      </StackPanel>
+    </Border>
+
+    <!-- Recent / address book / this network -->
+    <TabControl Grid.Row="2" Margin="0,14,0,0">
+      <TabItem Header="{loc:T Tab_Recent}">
+        <ListBox x:Name="RecentList" Margin="0,10,0,0" MouseDoubleClick="Recent_DoubleClick" />
+      </TabItem>
+      <TabItem Header="{loc:T Tab_Address}">
+        <Grid Margin="0,10,0,0">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <ListBox x:Name="AddressList" MouseDoubleClick="Address_DoubleClick" />
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
+            <TextBox x:Name="NicknameBox" Width="210" MaxLength="64" ToolTip="{loc:T Addr_Nickname}" />
             <Button Content="{loc:T Addr_Save}" Margin="8,0,8,0" Click="AddrSave_Click" />
             <Button Content="{loc:T Addr_Remove}" Click="AddrRemove_Click" />
           </StackPanel>
-
-          <TextBlock Text="{loc:T Recent}" Foreground="{DynamicResource MutedBrush}" Margin="0,20,0,4" />
-          <ListBox x:Name="RecentList" Height="120" MouseDoubleClick="Recent_DoubleClick" />
-        </StackPanel>
-      </ScrollViewer>
-    </TabItem>
-  </TabControl>
+        </Grid>
+      </TabItem>
+      <TabItem Header="{loc:T Tab_Network}">
+        <Grid Margin="0,10,0,0">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <StackPanel Orientation="Horizontal">
+            <Button x:Name="LanFindButton" Content="{loc:T Lan_Find}" Click="LanFind_Click" />
+            <TextBlock x:Name="LanStatus" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
+          </StackPanel>
+          <ListBox x:Name="LanList" Grid.Row="1" Margin="0,8,0,0" MouseDoubleClick="LanList_DoubleClick" />
+        </Grid>
+      </TabItem>
+    </TabControl>
+  </Grid>
 </Window>

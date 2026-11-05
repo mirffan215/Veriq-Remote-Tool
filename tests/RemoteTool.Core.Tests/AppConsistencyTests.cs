@@ -73,7 +73,7 @@ public class AppConsistencyTests
                 var id = m.Groups[1].Value;
                 if (names.Contains(id)) continue;
                 // members of the window itself (Title, Width, ...) and static types are fine; anything else is a control that does not exist
-                if (id is "Visibility" or "Application" or "Cursors" or "Brushes" or "Loc") continue;
+                if (id is "Visibility" or "Application" or "Cursors" or "Brushes" or "Loc" or "ConnectMode") continue;
                 Assert.Fail($"{Path.GetFileName(xaml)}: code uses control '{id}.{m.Groups[2].Value}' but XAML declares no x:Name=\"{id}\"");
             }
         }

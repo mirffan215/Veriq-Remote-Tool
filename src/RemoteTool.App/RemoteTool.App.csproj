@@ -13,6 +13,30 @@
     <Product>RemoteTool</Product>
     <Company>In-house IT</Company>
   </PropertyGroup>
+  <!--
+    Company defaults built into the exe so users never configure a relay. Supply at build time (all optional), e.g.
+        dotnet build -p:DefaultRelayAddress=relay.corp.example:443 -p:DefaultRelayFingerprint=AABB... -p:DefaultRelayKey=...
+    or through the environment variables RT_DEFAULT_RELAY / RT_DEFAULT_RELAY_FP / RT_DEFAULT_RELAY_KEY (CI secrets).
+    Values are embedded base64-encoded. The access key inside an exe can be extracted: it only keeps outsiders off your relay.
+  -->
+  <PropertyGroup>
+    <DefaultRelayAddress Condition="'$(DefaultRelayAddress)' == ''">$(RT_DEFAULT_RELAY)</DefaultRelayAddress>
+    <DefaultRelayFingerprint Condition="'$(DefaultRelayFingerprint)' == ''">$(RT_DEFAULT_RELAY_FP)</DefaultRelayFingerprint>
+    <DefaultRelayKey Condition="'$(DefaultRelayKey)' == ''">$(RT_DEFAULT_RELAY_KEY)</DefaultRelayKey>
+  </PropertyGroup>
+  <Target Name="GenerateEmbeddedDefaults" BeforeTargets="AssignTargetPaths">
+    <PropertyGroup>
+      <_DefaultsFile>$(IntermediateOutputPath)defaults.json</_DefaultsFile>
+      <_RelayB64>$([System.Convert]::ToBase64String($([System.Text.Encoding]::UTF8.GetBytes('$(DefaultRelayAddress)'))))</_RelayB64>
+      <_FpB64>$([System.Convert]::ToBase64String($([System.Text.Encoding]::UTF8.GetBytes('$(DefaultRelayFingerprint)'))))</_FpB64>
+      <_KeyB64>$([System.Convert]::ToBase64String($([System.Text.Encoding]::UTF8.GetBytes('$(DefaultRelayKey)'))))</_KeyB64>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_DefaultsFile)" Overwrite="true" Lines="{&quot;relayB64&quot;:&quot;$(_RelayB64)&quot;,&quot;fingerprintB64&quot;:&quot;$(_FpB64)&quot;,&quot;accessKeyB64&quot;:&quot;$(_KeyB64)&quot;}" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(_DefaultsFile)" LogicalName="RemoteTool.defaults.json" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <!-- The WPF SDK omits System.IO from implicit usings (Path clashes with System.Windows.Shapes.Path); this project never imports Shapes. -->
     <Using Include="System.IO" />

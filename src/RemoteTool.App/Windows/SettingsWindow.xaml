@@ -1,0 +1,83 @@
+<Window x:Class="RemoteTool.App.Windows.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:RemoteTool.App.Localization"
+        Title="{loc:T Settings}" Width="520" Height="720" MinWidth="460" MinHeight="500" WindowStartupLocation="CenterOwner">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="24,18,24,24">
+      <TextBlock Text="{loc:T Access_Title}" FontWeight="SemiBold" FontSize="15" />
+      <TextBlock Text="{loc:T Access_Help}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,2,0,6" />
+      <TextBlock x:Name="AccessState" Margin="0,0,0,4" FontWeight="SemiBold" />
+      <PasswordBox x:Name="AccessPwBox" FlowDirection="LeftToRight" MaxLength="64" />
+      <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+        <Button Content="{loc:T Access_Set}" Click="AccessSet_Click" />
+        <Button x:Name="AccessClearButton" Content="{loc:T Access_Clear}" Click="AccessClear_Click" />
+      </StackPanel>
+
+      <TextBlock Text="{loc:T One_Time_Password}" Foreground="{DynamicResource MutedBrush}" Margin="0,18,0,0" />
+      <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+        <TextBlock x:Name="PasswordText" FlowDirection="LeftToRight" FontSize="24" FontFamily="Consolas" VerticalAlignment="Center" />
+        <Button Content="{loc:T Copy}" Margin="16,0,8,0" VerticalAlignment="Center" Click="CopyPassword_Click" />
+        <Button Content="{loc:T Refresh}" VerticalAlignment="Center" Click="RefreshPassword_Click" />
+      </StackPanel>
+
+      <Border Height="1" Background="{DynamicResource BorderBrushX}" Margin="0,18,0,12" />
+
+      <TextBlock Text="{loc:T Display_Name}" Margin="0,4,0,2" Foreground="{DynamicResource MutedBrush}" />
+      <TextBox x:Name="DisplayNameBox" MaxLength="64" />
+
+      <CheckBox x:Name="ViewOnlyBox" Content="{loc:T Perm_ViewOnly}" Margin="0,12,0,0" />
+      <CheckBox x:Name="ClipboardBox" Content="{loc:T Perm_Clipboard}" />
+      <CheckBox x:Name="FilesBox" Content="{loc:T Perm_Files}" />
+      <CheckBox x:Name="H264Box" Content="{loc:T Setting_H264}" />
+
+      <TextBlock Text="{loc:T Theme}" Margin="0,12,0,2" Foreground="{DynamicResource MutedBrush}" />
+      <StackPanel Orientation="Horizontal">
+        <RadioButton x:Name="ThemeSystem" Content="{loc:T Theme_System}" GroupName="theme" />
+        <RadioButton x:Name="ThemeLight" Content="{loc:T Theme_Light}" GroupName="theme" />
+        <RadioButton x:Name="ThemeDark" Content="{loc:T Theme_Dark}" GroupName="theme" />
+      </StackPanel>
+
+      <TextBlock Text="{loc:T Setting_Language}" Margin="0,12,0,2" Foreground="{DynamicResource MutedBrush}" />
+      <StackPanel Orientation="Horizontal">
+        <RadioButton x:Name="LangSystem" Content="{loc:T Lang_System}" GroupName="lang" />
+        <RadioButton x:Name="LangEn" Content="{loc:T Lang_En}" GroupName="lang" />
+        <RadioButton x:Name="LangAr" Content="{loc:T Lang_Ar}" GroupName="lang" />
+      </StackPanel>
+
+      <Expander Header="{loc:T Advanced}" Margin="0,16,0,0">
+        <StackPanel Margin="0,8,0,0">
+          <TextBlock Text="{loc:T Advanced_Help}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
+          <TextBlock Text="{loc:T Relay_Address}" Margin="0,12,0,2" Foreground="{DynamicResource MutedBrush}" />
+          <TextBox x:Name="RelayAddressBox" FlowDirection="LeftToRight" />
+          <TextBlock Text="{loc:T Relay_Key}" Margin="0,8,0,2" Foreground="{DynamicResource MutedBrush}" />
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <PasswordBox x:Name="RelayKeyBox" FlowDirection="LeftToRight" />
+            <Button Grid.Column="1" Content="{loc:T Clear}" Margin="8,0,0,0" Click="ClearKey_Click" />
+          </Grid>
+          <TextBlock Text="{loc:T Relay_Fingerprint}" Margin="0,8,0,2" Foreground="{DynamicResource MutedBrush}" />
+          <TextBox x:Name="RelayFingerprintBox" FlowDirection="LeftToRight" FontFamily="Consolas" />
+
+          <CheckBox x:Name="DirectBox" Content="{loc:T Direct_Enable}" Margin="0,14,0,0" />
+          <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+            <TextBlock Text="{loc:T Direct_Port}" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox x:Name="DirectPortBox" FlowDirection="LeftToRight" Width="90" />
+          </StackPanel>
+          <CheckBox x:Name="LanVisibleBox" Content="{loc:T Lan_Visible}" Margin="0,6,0,0" />
+          <CheckBox x:Name="LanFirstBox" Content="{loc:T Lan_First}" />
+          <TextBlock Text="{loc:T Allow_List}" Margin="0,8,0,2" Foreground="{DynamicResource MutedBrush}" />
+          <TextBox x:Name="AllowListBox" FlowDirection="LeftToRight" />
+          <Button Content="{loc:T Generate_Id}" Margin="0,14,0,0" HorizontalAlignment="Left" Click="GenerateId_Click" />
+        </StackPanel>
+      </Expander>
+
+      <Button Content="{loc:T Svc_Button}" Margin="0,16,0,0" HorizontalAlignment="Left" Click="ServiceSetup_Click" />
+      <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+        <Button Content="{loc:T Save}" Style="{StaticResource PrimaryButton}" Click="Save_Click" />
+        <Button Content="{loc:T Close}" IsCancel="True" Click="Close_Click" />
+      </StackPanel>
+      <TextBlock x:Name="SettingsStatus" Margin="0,8,0,0" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
+    </StackPanel>
+  </ScrollViewer>
+</Window>

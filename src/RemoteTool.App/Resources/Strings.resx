@@ -126,4 +126,31 @@ It will be saved in the "RemoteTool Received" folder. Only accept files you expe
  <data name="Lan_Item" xml:space="preserve"><value>{0}  -  {1}  ({2})</value></data>
  <data name="Err_NoRelayNoLan" xml:space="preserve"><value>That code was not found on the local network, and no relay server is configured for internet connections.</value></data>
  <data name="Svc_Lan" xml:space="preserve"><value>Local network mode: allow LAN connections and discovery (opens the firewall for the local subnet on Private/Domain networks only)</value></data>
+ <data name="Main_YourAddress" xml:space="preserve"><value>Your Address</value></data>
+ <data name="Main_RemoteAddress" xml:space="preserve"><value>Remote Address</value></data>
+ <data name="Main_Share" xml:space="preserve"><value>Share this address with the person who needs to connect to you. You will be asked to accept.</value></data>
+ <data name="Status_Ready" xml:space="preserve"><value>Ready to receive connections</value></data>
+ <data name="Status_Connecting" xml:space="preserve"><value>Connecting…</value></data>
+ <data name="Status_Denied" xml:space="preserve"><value>Cannot register: access denied</value></data>
+ <data name="Status_Offline" xml:space="preserve"><value>Offline - check your internet connection</value></data>
+ <data name="Status_LanOnly" xml:space="preserve"><value>Ready on this network</value></data>
+ <data name="Status_NotConfigured" xml:space="preserve"><value>Not connected to a relay - only this network</value></data>
+ <data name="Waiting_Accept" xml:space="preserve"><value>Waiting for the other side to accept… Security code: {0}</value></data>
+ <data name="Err_PasswordNeeded" xml:space="preserve"><value>This computer needs a password. Enter it below and connect again.</value></data>
+ <data name="AccessPw_Header" xml:space="preserve"><value>Password (only if you were given one)</value></data>
+ <data name="Tab_Recent" xml:space="preserve"><value>Recent</value></data>
+ <data name="Tab_Address" xml:space="preserve"><value>Address book</value></data>
+ <data name="Tab_Network" xml:space="preserve"><value>On this network</value></data>
+ <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+ <data name="Close" xml:space="preserve"><value>Close</value></data>
+ <data name="Access_Title" xml:space="preserve"><value>Access password</value></data>
+ <data name="Access_Help" xml:space="preserve"><value>Optional. Anyone who knows this password can connect without you clicking Accept (the red banner and Disconnect button stay). Leave it off to approve every connection yourself.</value></data>
+ <data name="Access_Set" xml:space="preserve"><value>Set password</value></data>
+ <data name="Access_Clear" xml:space="preserve"><value>Remove password</value></data>
+ <data name="Access_On" xml:space="preserve"><value>Access password: ON</value></data>
+ <data name="Access_Off" xml:space="preserve"><value>Access password: off - every connection needs your Accept</value></data>
+ <data name="Advanced" xml:space="preserve"><value>Advanced</value></data>
+ <data name="Advanced_Help" xml:space="preserve"><value>Normally not needed: your administrator can pre-configure these.</value></data>
+ <data name="Security_Code" xml:space="preserve"><value>Security code: {0}</value></data>
+ <data name="Security_Code_Warn" xml:space="preserve"><value>Click-only connection. Ask the other person to read you their security code - it must match this one: {0}. If it does not match, press Deny.</value></data>
 </root>

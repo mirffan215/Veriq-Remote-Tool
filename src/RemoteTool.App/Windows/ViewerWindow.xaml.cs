@@ -55,6 +55,7 @@ public partial class ViewerWindow : Window
         s.CursorChanged += OnCursor;
         s.ScreenInfoReceived += info => Dispatcher.InvokeAsync(() => OnScreenInfo(info));
         s.Ended += (reason, _) => Dispatcher.InvokeAsync(() => OnSessionEnded(s, reason));
+        if (s.SecurityCode is { } secCode) StatusText.Text = Loc.F("Security_Code", secCode);
         s.FileReceived += path => Dispatcher.InvokeAsync(() => StatusText.Text = Loc.F("File_Received", System.IO.Path.GetFileName(path)));
         if ((s.Permissions & Permissions.Clipboard) != 0) s.AttachClipboard(_ctx.ClipboardFactory());
         s.AttachFileTransfer(_ctx.Prompt, _ctx.FileOptions);

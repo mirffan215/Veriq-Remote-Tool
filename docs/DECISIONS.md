@@ -148,3 +148,12 @@ Discovery output is an unauthenticated hint; authentication and consent are unch
 **D-38 Why LAN-first is opt-in.** With the current non-PAKE proof (D-04), a spoofed LAN answer can lure a viewer into sending one proof to an attacker. Doing that by default would be a downgrade compared with the relay path, so the user chooses it, and the report lists a PAKE as the top next hardening step.
 
 **D-39 Findings from the security pass** (SECURITY-TEST-REPORT.md): per-source pre-auth limits (F1), geometry/JPEG-header caps (F2), vulnerability scan that cannot silently pass (F3).
+
+## AnyDesk-style simplification (click-only access, access password, zero-config)
+User feedback: the tool asked for too many settings. Decisions:
+* **Main screen** = "Your Address" + remote-address box + Connect. Everything else is in Settings (Advanced is collapsed). Relay details are baked in at build time (BUILD.md).
+* **Default connection = ask and Accept.** Wire protocol v4 adds a password-less *Consent* mode. Trade-off: with no shared secret, a malicious relay could MITM. Mitigation: a 6-digit
+  security code derived from the nonces and both TLS certificate fingerprints, shown on both screens (host's Accept dialog tells the user to compare it); commit-then-reveal nonce prevents grinding;
+  repeated denials lock the source out. Residual risk: it depends on a human comparing the code (as in Signal/ZRTP). A PAKE (SPAKE2+/OPAQUE) remains the recommended future hardening.
+* **Access password** (optional, Settings): lets a viewer who knows it connect with no click (AnyDesk "unattended access"). Stored as derived key + salt (DPAPI), ≥12 chars, global failure breaker and per-source lockout; banner and Disconnect remain; control + clipboard only, never file transfer.
+* The Windows service refuses click-only mode (nobody to click on the login screen): it always needs its permanent password.

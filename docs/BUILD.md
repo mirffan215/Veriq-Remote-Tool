@@ -82,8 +82,16 @@ Settings (`appsettings.json` or `Relay__*` env): `Port, HealthPort, AccessKey, C
 IdleTimeoutSeconds (90), ConnectsPerMinutePerIp (10), FailedLookupsPerMinutePerIp (5), RegistrationsPerMinutePerIp`. Logs go to stdout (metadata only).
 Failover: give clients several relay addresses (`relay1.example.com:8443, relay2.example.com:8443`). Relays are independent and stateless, so run two on different hosts/providers; the same access key and (optionally) both fingerprints, comma-separated, go in the client settings.
 
-## Clients: first-run configuration
-Settings tab → *Relay server* `relay.example.com:8443`, *access key*, optional *fingerprint*. Or silently: set `REMOTETOOL_RELAY`, `REMOTETOOL_RELAY_KEY`, `REMOTETOOL_RELAY_FP`
+## Clients: zero-configuration builds
+End users should never type a relay address. Bake your relay into the exe at build time so it works out of the box (the user only sees "Your Address" and a box for the other side):
+```
+dotnet publish -p:DefaultRelayAddress=relay.corp.example:443 -p:DefaultRelayFingerprint=AABB… -p:DefaultRelayKey=…
+```
+or set `RT_DEFAULT_RELAY`, `RT_DEFAULT_RELAY_FP`, `RT_DEFAULT_RELAY_KEY` in CI. Defaults only fill *empty* settings. Caveat: an embedded relay access key can be extracted from the exe;
+it only gates use of your relay, never access to a PC (that is always Accept-click or password). Use a rate-limited key you can rotate.
+
+## Clients: manual configuration
+Settings → Advanced → *Relay server* `relay.example.com:8443`, *access key*, optional *fingerprint*. Or silently: set `REMOTETOOL_RELAY`, `REMOTETOOL_RELAY_KEY`, `REMOTETOOL_RELAY_FP`
 before the first launch (applied only to empty settings).
 
 ## Code signing (Authenticode) and allow-listing

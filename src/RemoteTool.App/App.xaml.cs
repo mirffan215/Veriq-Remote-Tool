@@ -4,6 +4,7 @@ using RemoteTool.App.Services;
 using RemoteTool.App.Windows;
 using RemoteTool.Core.Audit;
 using RemoteTool.Core.Config;
+using RemoteTool.Core.Security;
 
 namespace RemoteTool.App;
 
@@ -39,7 +40,9 @@ public partial class App : Application
         var firstRun = !File.Exists(paths.SettingsFile);
         var store = new SettingsStore(paths.SettingsFile);
         store.Load();
-        ApplyDeploymentDefaults(store, e.Args);
+        // Zero setup for users: company relay defaults (env/args > file next to exe > built into the exe) fill only EMPTY settings.
+        var defaults = DefaultsLoader.Load(exeDir, e.Args);
+        if (defaults.ApplyTo(store.Current, new DpapiProtector())) store.Save();
 
         var hostAudit = new JsonlAuditLog(paths.LogDirectory, "host");
         var viewerAudit = new JsonlAuditLog(paths.LogDirectory, "viewer");
@@ -49,30 +52,12 @@ public partial class App : Application
         var protector = new DpapiProtector();
         ApplyLanguage(store.Current.Language);
         ThemeManager.Apply(store.Current.Theme);
-        _host = new HostController(Dispatcher, store, protector, hostAudit, paths.ReceivedFilesDirectory);
+        var access = new PermanentPasswordStore(Path.Combine(paths.SettingsDirectory, "access.json"), protector);   // optional "access password" of this PC
+        _host = new HostController(Dispatcher, store, protector, hostAudit, paths.ReceivedFilesDirectory, access);
         _host.ApplySettings();
         var viewer = new ViewerLauncher(store, protector, viewerAudit, new UiFilePrompt(Dispatcher), paths.ReceivedFilesDirectory);
-        MainWindow = new MainWindow(store, protector, _host, viewer);
+        MainWindow = new MainWindow(store, protector, _host, viewer, access);
         MainWindow.Show();
-    }
-
-    /// <summary>
-    /// Zero-touch deployment: relay settings may come from environment variables (preferred for secrets) or command line:
-    /// REMOTETOOL_RELAY, REMOTETOOL_RELAY_KEY, REMOTETOOL_RELAY_FP  /  --relay host:port --relay-key K --relay-fp HEX.
-    /// Only applied when the corresponding setting is still empty, so user changes are never overwritten.
-    /// </summary>
-    private static void ApplyDeploymentDefaults(SettingsStore store, string[] args)
-    {
-        string? Arg(string name) { var i = Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length ? args[i + 1] : null; }
-        var s = store.Current;
-        var relay = Arg("--relay") ?? Environment.GetEnvironmentVariable("REMOTETOOL_RELAY");
-        var key = Arg("--relay-key") ?? Environment.GetEnvironmentVariable("REMOTETOOL_RELAY_KEY");
-        var fp = Arg("--relay-fp") ?? Environment.GetEnvironmentVariable("REMOTETOOL_RELAY_FP");
-        var changed = false;
-        if (string.IsNullOrEmpty(s.RelayAddress) && !string.IsNullOrWhiteSpace(relay)) { s.RelayAddress = relay.Trim(); changed = true; }
-        if (string.IsNullOrEmpty(s.RelayAccessKeyProtected) && !string.IsNullOrWhiteSpace(key)) { s.RelayAccessKeyProtected = new DpapiProtector().Protect(key); changed = true; }
-        if (string.IsNullOrEmpty(s.RelayFingerprint) && !string.IsNullOrWhiteSpace(fp)) { s.RelayFingerprint = fp.Trim(); changed = true; }
-        if (changed) store.Save();
     }
 
     /// <summary>"ar" / "en" / "System". Resources fall back to English for any missing key; RTL layout follows the culture.</summary>

@@ -28,6 +28,8 @@ public sealed class ViewerSession : IAsyncDisposable
     public byte ActiveMonitor { get; private set; }
     /// <summary>6-digit code both people can compare; a different code on the two screens means someone is in the middle.</summary>
     public string SecurityCode { get; private set; } = "";
+    /// <summary>True when no password was used: the other person's Accept click authorised this session (so the security code matters).</summary>
+    public bool ConsentOnly { get; private set; }
     /// <summary>Codec currently used for the video stream (may fall back to tiles mid-session).</summary>
     public VideoCodecs Codec { get; private set; } = VideoCodecs.TileJpeg;
     /// <summary>True when the host records this session: the UI must show a clear REC indicator.</summary>
@@ -118,6 +120,7 @@ public sealed class ViewerSession : IAsyncDisposable
 
             var s = new ViewerSession(ch, reader, writer, challenge.HostName, consent.GrantedPermissions, audit);
             s.SecurityCode = securityCode;
+            s.ConsentOnly = consentOnly;
             s.Codec = consent.Codec;
             s.Recording = consent.Recording;
             s.ResumeToken = consent.ResumeToken is { Length: > 0 } t ? System.Text.Encoding.ASCII.GetString(t) : "";

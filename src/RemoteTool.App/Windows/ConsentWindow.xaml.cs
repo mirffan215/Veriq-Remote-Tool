@@ -16,6 +16,11 @@ public partial class ConsentWindow : Window
         Headline.Text = Loc.F("Consent_Text", info.ViewerName);
         SourceText.Text = Loc.F("Consent_Source", info.Source);
         RelayNote.Visibility = info.ViaRelay ? Visibility.Visible : Visibility.Collapsed;
+        if (info.ConsentOnly && info.SecurityCode is { } code)
+        {
+            CodeNote.Text = Loc.F("Security_Code_Warn", code);
+            CodeNote.Visibility = Visibility.Visible;
+        }
         RecNote.Visibility = info.Recording ? Visibility.Visible : Visibility.Collapsed;
         Configure(ControlBox, info, Permissions.Control);
         Configure(ClipboardBox, info, Permissions.Clipboard);

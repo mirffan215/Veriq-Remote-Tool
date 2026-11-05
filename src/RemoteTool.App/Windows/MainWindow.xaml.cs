@@ -1,23 +1,29 @@
-using RemoteTool.Service;
 using System.Windows;
 using System.Windows.Input;
 using RemoteTool.App.Localization;
 using RemoteTool.App.Services;
 using RemoteTool.Core.Config;
 using RemoteTool.Core.Relay;
+using RemoteTool.Core.Security;
 using RemoteTool.Core.Session;
+using RemoteTool.Service;
 
 namespace RemoteTool.App.Windows;
 
+/// <summary>
+/// The everyday screen: "Your Address" at the top, a box for the other side's address, Connect. The person at the other end gets an Accept prompt;
+/// a password is only for the (optional) case where someone gave you one. Everything technical lives behind the Settings button.
+/// </summary>
 public partial class MainWindow : Window
 {
     private readonly SettingsStore _store;
     private readonly ISecretProtector _protector;
+    private readonly PermanentPasswordStore _access;
     private readonly HostController _host;
     private readonly ViewerLauncher _viewer;
     private CancellationTokenSource? _connectCts;
 
-    public MainWindow(SettingsStore store, ISecretProtector protector, HostController host, ViewerLauncher viewer)
+    public MainWindow(SettingsStore store, ISecretProtector protector, HostController host, ViewerLauncher viewer, PermanentPasswordStore access)
     {
         InitializeComponent();
         FlowDirection = Loc.Flow;
@@ -25,35 +31,121 @@ public partial class MainWindow : Window
         _protector = protector;
         _host = host;
         _viewer = viewer;
-        LoadSettingsIntoUi();
+        _access = access;
+        RefreshRecent();
+        RefreshAddresses();
         RefreshState();
         _host.StateChanged += RefreshState;
         Closing += (_, _) => _connectCts?.Cancel();
+        Loaded += (_, _) => TargetBox.Focus();
     }
 
-    private void LoadSettingsIntoUi()
+    // ---- "Your address" card ------------------------------------------------------------------------------
+
+    private void RefreshState()
     {
-        var s = _store.Current;
-        DisplayNameBox.Text = s.DisplayName;
-        ViewOnlyBox.IsChecked = s.ViewOnly;
-        ClipboardBox.IsChecked = s.AllowClipboard;
-        FilesBox.IsChecked = s.AllowFileTransfer;
-        H264Box.IsChecked = s.EnableH264;
-        LangSystem.IsChecked = s.Language == "System" || (s.Language != "en" && s.Language != "ar");
-        LangEn.IsChecked = s.Language == "en";
-        LangAr.IsChecked = s.Language == "ar";
-        RelayAddressBox.Text = s.RelayAddress;
-        RelayFingerprintBox.Text = s.RelayFingerprint;
-        DirectBox.IsChecked = s.DirectListenerEnabled;
-        LanVisibleBox.IsChecked = s.LanVisible;
-        LanFirstBox.IsChecked = s.LanFirst;
-        DirectPortBox.Text = s.DirectPort.ToString();
-        AllowListBox.Text = string.Join(", ", s.IpAllowList);
-        ThemeSystem.IsChecked = s.Theme == "System";
-        ThemeLight.IsChecked = s.Theme == "Light";
-        ThemeDark.IsChecked = s.Theme == "Dark";
-        RefreshRecent();
+        var svc = _host.ServiceManaged ? ServiceStatus.Read() : null;
+        if (svc is not null)
+        {
+            IdText.Text = ConnectionId.Format(svc.Id);
+            StatusText.Text = Loc.F("Svc_Managed", ConnectionId.Format(svc.Id), Loc.T(svc.UnattendedEnabled ? "Svc_On" : "Svc_Off"));
+            StatusDot.Fill = svc.Relay == "Online" ? System.Windows.Media.Brushes.LimeGreen : System.Windows.Media.Brushes.Orange;
+            return;
+        }
+        IdText.Text = ConnectionId.Format(_store.Current.Id);
+        var (text, color) = _host.Service.RelayStatus switch
+        {
+            RelayStatus.Online => (Loc.T("Status_Ready"), System.Windows.Media.Brushes.LimeGreen),
+            RelayStatus.Connecting => (Loc.T("Status_Connecting"), System.Windows.Media.Brushes.Orange),
+            RelayStatus.AccessDenied => (Loc.T("Status_Denied"), System.Windows.Media.Brushes.Red),
+            RelayStatus.Offline => (Loc.T("Status_Offline"), System.Windows.Media.Brushes.Red),
+            _ => _host.Service.DirectListening ? (Loc.T("Status_LanOnly"), System.Windows.Media.Brushes.LimeGreen) : (Loc.T("Status_NotConfigured"), System.Windows.Media.Brushes.Orange),
+        };
+        StatusText.Text = text;
+        StatusDot.Fill = color;
+    }
+
+    private void CopyId_Click(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText(ConnectionId.Format(_store.Current.Id)); } catch (System.Runtime.InteropServices.COMException) { }
+    }
+
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        new SettingsWindow(_store, _protector, _host, _access) { Owner = this }.ShowDialog();
+        RefreshState();
+    }
+
+    // ---- connecting ---------------------------------------------------------------------------------------
+
+    private async void Connect_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ConnectTarget.TryParse(TargetBox.Text, out var target)) { ConnectStatus.Text = Loc.T("Err_BadTarget"); return; }
+        var password = ConnectPasswordBox.Password;
+        ConnectPasswordBox.Clear();                                    // never keep, never store a password
+        var mode = password.Length > 0 ? ConnectMode.Password : ConnectMode.Request;
+
+        ConnectButton.Visibility = Visibility.Collapsed;
+        CancelButton.Visibility = Visibility.Visible;
+        ConnectStatus.Text = Loc.T("Connecting");
+        _connectCts = new CancellationTokenSource();
+        try
+        {
+            var (session, ctx) = await _viewer.ConnectAsync(target!, password, mode,
+                code => Dispatcher.InvokeAsync(() => ConnectStatus.Text = Loc.F("Waiting_Accept", code)), _connectCts.Token);
+            _store.AddRecent(target is ConnectTarget.ById b ? ConnectionId.Format(b.Id) : TargetBox.Text.Trim());
+            RefreshRecent();
+            ConnectStatus.Text = "";
+            new ViewerWindow(session, ctx).Show();
+        }
+        catch (ConnectFailedException ex) when (ex.Failure == ConnectFailure.PasswordRequired)
+        {
+            PasswordExpander.IsExpanded = true;                         // this PC wants a password: open the box and say so
+            ConnectPasswordBox.Focus();
+            ConnectStatus.Text = Loc.T("Err_PasswordNeeded");
+        }
+        catch (ConnectFailedException ex) { ConnectStatus.Text = Loc.F("Err_Failed", ex.Message); }
+        catch (OperationCanceledException) { ConnectStatus.Text = ""; }
+        finally
+        {
+            CancelButton.Visibility = Visibility.Collapsed;
+            ConnectButton.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void Cancel_Click(object sender, RoutedEventArgs e) => _connectCts?.Cancel();
+
+    // ---- recent / address book / this network -------------------------------------------------------------
+
+    private void RefreshRecent() => RecentList.ItemsSource = _store.Current.Recent.Select(r => r.Target).ToList();
+
+    private void Recent_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (RecentList.SelectedItem is string t) { TargetBox.Text = t; TargetBox.Focus(); }
+    }
+
+    private sealed record AddrItem(string Target, string Nickname, string Label) { public override string ToString() => Label; }
+
+    private void RefreshAddresses() => AddressList.ItemsSource = _store.Current.AddressBook
+        .Select(a => new AddrItem(a.Target, a.Nickname, a.Nickname.Length > 0 ? $"{a.Nickname}  -  {a.Target}" : a.Target)).ToList();
+
+    private void Address_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (AddressList.SelectedItem is not AddrItem i) return;
+        TargetBox.Text = i.Target;
+        NicknameBox.Text = i.Nickname;
+    }
+
+    private void AddrSave_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ConnectTarget.TryParse(TargetBox.Text, out var t)) { ConnectStatus.Text = Loc.T("Err_BadTarget"); return; }
+        _store.UpsertAddress(t is ConnectTarget.ById b ? ConnectionId.Format(b.Id) : TargetBox.Text.Trim(), NicknameBox.Text);
         RefreshAddresses();
+    }
+
+    private void AddrRemove_Click(object sender, RoutedEventArgs e)
+    {
+        if (AddressList.SelectedItem is AddrItem i && _store.RemoveAddress(i.Target)) RefreshAddresses();
     }
 
     private sealed record LanItem(string Endpoint, string Label) { public override string ToString() => Label; }
@@ -71,150 +163,9 @@ public partial class MainWindow : Window
         finally { LanFindButton.IsEnabled = true; }
     }
 
-    /// <summary>Discovery results are hints only: choosing one just fills in ip:port - the password handshake still decides.</summary>
+    /// <summary>Discovery results are hints only: choosing one just fills in ip:port - the other person still has to accept (or you need a password).</summary>
     private void LanList_DoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (LanList.SelectedItem is LanItem i) { TargetBox.Text = i.Endpoint; ConnectPasswordBox.Focus(); }
-    }
-
-    private sealed record AddrItem(string Target, string Nickname, string Label) { public override string ToString() => Label; }
-
-    private void RefreshAddresses() => AddressList.ItemsSource = _store.Current.AddressBook
-        .Select(a => new AddrItem(a.Target, a.Nickname, a.Nickname.Length > 0 ? $"{a.Nickname}  -  {a.Target}" : a.Target)).ToList();
-
-    private void Address_DoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (AddressList.SelectedItem is not AddrItem i) return;
-        TargetBox.Text = i.Target;
-        NicknameBox.Text = i.Nickname;
-        ConnectPasswordBox.Focus();
-    }
-
-    private void AddrSave_Click(object sender, RoutedEventArgs e)
-    {
-        if (!ConnectTarget.TryParse(TargetBox.Text, out var t)) { ConnectStatus.Text = Loc.T("Err_BadTarget"); return; }
-        _store.UpsertAddress(t is ConnectTarget.ById b ? ConnectionId.Format(b.Id) : TargetBox.Text.Trim(), NicknameBox.Text);
-        RefreshAddresses();
-    }
-
-    private void AddrRemove_Click(object sender, RoutedEventArgs e)
-    {
-        if (AddressList.SelectedItem is AddrItem i && _store.RemoveAddress(i.Target)) RefreshAddresses();
-    }
-
-    private void RefreshRecent() => RecentList.ItemsSource = _store.Current.Recent.Select(r => r.Target).ToList();
-
-    private void RefreshState()
-    {
-        var svc = _host.ServiceManaged ? ServiceStatus.Read() : null;
-        if (svc is not null)
-        {
-            // The Windows service owns this PC's identity: show ITS ID; there is no one-time password in service mode.
-            IdText.Text = ConnectionId.Format(svc.Id);
-            PasswordText.Text = "—";
-            ServiceNote.Text = Loc.F("Svc_Managed", ConnectionId.Format(svc.Id), Loc.T(svc.UnattendedEnabled ? "Svc_On" : "Svc_Off"));
-            RelayStatusText.Text = "Relay: " + svc.Relay;
-            StatusDot.Fill = svc.Relay == "Online" ? System.Windows.Media.Brushes.LimeGreen : System.Windows.Media.Brushes.Orange;
-            DirectStatusText.Text = "";
-            return;
-        }
-        ServiceNote.Text = "";
-        IdText.Text = ConnectionId.Format(_store.Current.Id);
-        PasswordText.Text = _host.Service.Password;
-        var (text, color) = _host.Service.RelayStatus switch
-        {
-            RelayStatus.Online => (Loc.T("Relay_Online"), System.Windows.Media.Brushes.LimeGreen),
-            RelayStatus.Connecting => (Loc.T("Relay_Connecting"), System.Windows.Media.Brushes.Orange),
-            RelayStatus.AccessDenied => (Loc.T("Relay_Denied"), System.Windows.Media.Brushes.Red),
-            RelayStatus.Offline => (Loc.T("Relay_Offline"), System.Windows.Media.Brushes.Red),
-            _ => (Loc.T("Relay_Disabled"), System.Windows.Media.Brushes.Gray),
-        };
-        RelayStatusText.Text = text;
-        StatusDot.Fill = color;
-        DirectStatusText.Text = _host.Service.DirectListening ? $"Direct (Mode A): listening on port {_store.Current.DirectPort}" : "";
-        if (_host.LastError is { } err) SettingsStatus.Text = Loc.F("Err_Listen", err);
-    }
-
-    private static void ToClipboard(string text)
-    {
-        try { Clipboard.SetText(text); } catch (System.Runtime.InteropServices.COMException) { }
-    }
-
-    private void CopyId_Click(object sender, RoutedEventArgs e) => ToClipboard(ConnectionId.Format(_store.Current.Id));
-    private void CopyPassword_Click(object sender, RoutedEventArgs e) => ToClipboard(_host.Service.Password);
-    private void RefreshPassword_Click(object sender, RoutedEventArgs e) => _host.Service.RotatePassword();
-    /// <summary>Relaunches this exe elevated (UAC) in service-setup mode. The normal UI never runs with admin rights.</summary>
-    private void ServiceSetup_Click(object sender, RoutedEventArgs e)
-    {
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, "--service-setup") { UseShellExecute = true, Verb = "runas" }); }
-        catch (System.ComponentModel.Win32Exception) { /* user declined the UAC prompt */ }
-    }
-
-    private void ClearKey_Click(object sender, RoutedEventArgs e) { _store.Current.RelayAccessKeyProtected = ""; RelayKeyBox.Clear(); _store.Save(); _host.ApplySettings(); }
-
-    private void GenerateId_Click(object sender, RoutedEventArgs e)
-    {
-        if (MessageBox.Show(this, Loc.T("New_Id_Confirm"), Loc.T("App_Title"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        _store.RegenerateId();
-        _host.RestartRelayRegistration();
-        RefreshState();
-    }
-
-    private void Save_Click(object sender, RoutedEventArgs e)
-    {
-        var s = _store.Current;
-        if (!int.TryParse(DirectPortBox.Text, out var port) || port is < 1 or > 65535) { SettingsStatus.Text = Loc.T("Err_Port"); return; }
-        var relay = RelayAddressBox.Text.Trim();
-        if (relay.Length > 0 && !RelayEndpoint.TryParseList(relay, "", "", out _)) { SettingsStatus.Text = Loc.T("Err_Relay"); return; }
-
-        var portChanged = port != s.DirectPort;
-        s.DisplayName = NameSanitizer.Clean(DisplayNameBox.Text, Environment.MachineName);
-        s.ViewOnly = ViewOnlyBox.IsChecked == true;
-        s.AllowClipboard = ClipboardBox.IsChecked == true;
-        s.AllowFileTransfer = FilesBox.IsChecked == true;
-        s.EnableH264 = H264Box.IsChecked == true;
-        s.Language = LangAr.IsChecked == true ? "ar" : LangEn.IsChecked == true ? "en" : "System";
-        s.RelayAddress = relay;
-        s.RelayFingerprint = RelayFingerprintBox.Text.Trim();
-        if (RelayKeyBox.Password.Length > 0) s.RelayAccessKeyProtected = _protector.Protect(RelayKeyBox.Password);
-        RelayKeyBox.Clear();
-        s.DirectListenerEnabled = DirectBox.IsChecked == true;
-        s.LanVisible = LanVisibleBox.IsChecked == true && s.DirectListenerEnabled;   // visibility needs the listener
-        s.LanFirst = LanFirstBox.IsChecked == true;
-        s.DirectPort = port;
-        s.IpAllowList = AllowListBox.Text.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-        s.Theme = ThemeDark.IsChecked == true ? "Dark" : ThemeLight.IsChecked == true ? "Light" : "System";
-        _store.Save();
-        ThemeManager.Apply(s.Theme);
-        _host.AuditSettingsChanged();
-        if (portChanged) _host.RestartDirectListener(); else _host.ApplySettings();
-        SettingsStatus.Text = _host.LastError is { } err ? Loc.F("Err_Listen", err) : Loc.T("Saved");
-        RefreshState();
-    }
-
-    private void Recent_DoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (RecentList.SelectedItem is string t) { TargetBox.Text = t; ConnectPasswordBox.Focus(); }
-    }
-
-    private async void Connect_Click(object sender, RoutedEventArgs e)
-    {
-        if (!ConnectTarget.TryParse(TargetBox.Text, out var target)) { ConnectStatus.Text = Loc.T("Err_BadTarget"); return; }
-        var password = ConnectPasswordBox.Password;
-        ConnectPasswordBox.Clear(); // never keep the password around, never store it
-        ConnectButton.IsEnabled = false;
-        ConnectStatus.Text = Loc.T("Connecting");
-        _connectCts = new CancellationTokenSource();
-        try
-        {
-            var (session, ctx) = await _viewer.ConnectAsync(target!, password, UnattendedBox.IsChecked == true, _connectCts.Token);
-            _store.AddRecent(target is ConnectTarget.ById b ? ConnectionId.Format(b.Id) : TargetBox.Text.Trim());
-            RefreshRecent();
-            ConnectStatus.Text = "";
-            new ViewerWindow(session, ctx).Show();
-        }
-        catch (ConnectFailedException ex) { ConnectStatus.Text = Loc.F("Err_Failed", ex.Message); }
-        catch (OperationCanceledException) { ConnectStatus.Text = ""; }
-        finally { ConnectButton.IsEnabled = true; }
+        if (LanList.SelectedItem is LanItem i) { TargetBox.Text = i.Endpoint; TargetBox.Focus(); }
     }
 }
