@@ -24,6 +24,20 @@ On Linux/macOS the WPF project cannot be built; test the three projects above in
 The exe needs no installer and no .NET runtime. Settings: `%AppData%\RemoteTool\settings.json`, logs `%ProgramData%\RemoteTool\logs`
 (falls back to `%LocalAppData%`). **Portable mode:** create an empty file `portable.flag` next to the exe → everything goes to `data\` next to it.
 
+## The deployable package project (`deploy/RemoteTool.Package`)
+Part of the solution (folder *deploy*). **Building it publishes `RemoteTool.App` as one self-contained exe** and writes, under `artifacts\`:
+```
+artifacts\package\RemoteTool.exe            single file, no installer, no .NET needed on the target PC
+artifacts\package\RemoteTool.exe.sha256     SHA-256 of the exe
+artifacts\package\README.txt                run / portable.flag / verify / signing notes
+artifacts\RemoteTool-<version>-win-x64.zip   all of the above, ready to copy or upload
+```
+* **Visual Studio:** right-click *RemoteTool.Package* → **Build** (works in any configuration). With the **Release** configuration, *Build Solution* builds it too; in Debug it is skipped because publishing is slow.
+* **Command line:** `dotnet build deploy\RemoteTool.Package -c Release`
+* **GitHub:** the Windows CI job uploads the zip as the **RemoteTool-package** artifact.
+* It uses the same flags as `scripts\publish-app.ps1` (which additionally runs tests/vulnerability scan and can sign). Sign `artifacts\package\RemoteTool.exe` *before* distributing (`scripts\sign-app.ps1`), then recompute the hash.
+* Version number comes from `<Version>` in `Directory.Build.props`.
+
 ## Relay deployment
 Needs a small VPS/VM (1 vCPU / 512 MB is enough for hundreds of sessions; traffic is the limiter) with **one inbound port** (default 8443/TCP).
 1. Firewall: allow only the relay port inbound (and SSH from your admin network). `/healthz` listens on loopback only.

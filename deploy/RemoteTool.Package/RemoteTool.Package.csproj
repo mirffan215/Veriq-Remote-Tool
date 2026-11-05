@@ -1,0 +1,81 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    RemoteTool.Package - builds the DEPLOYABLE single-file package.
+    Building this project publishes RemoteTool.App as ONE self-contained exe (no installer, no .NET needed on the target PC) and writes:
+        artifacts\package\RemoteTool.exe            the portable exe
+        artifacts\package\RemoteTool.exe.sha256     its SHA-256
+        artifacts\package\README.txt                short run/portable/sign instructions
+        artifacts\RemoteTool-<version>-win-x64.zip  all of the above, ready to copy or upload
+    It contains no code of its own. Visual Studio: right-click the project -> Build  (or switch to Release and Build Solution).
+    Command line:  dotnet build deploy\RemoteTool.Package -c Release
+    Overridable (used by the tests of this project): PackagedProject, PackageRid, PackageExeName, PackageDir.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+    <RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</RepoRoot>
+    <!-- The dotnet CLI sets DOTNET_HOST_PATH; Visual Studio's MSBuild may not, so fall back to the one on PATH. -->
+    <PackageDotnet>$(DOTNET_HOST_PATH)</PackageDotnet>
+    <PackageDotnet Condition="'$(PackageDotnet)' == ''">dotnet</PackageDotnet>
+    <PackagedProject Condition="'$(PackagedProject)' == ''">$(RepoRoot)src\RemoteTool.App\RemoteTool.App.csproj</PackagedProject>
+    <PackageRid Condition="'$(PackageRid)' == ''">win-x64</PackageRid>
+    <PackageExeName Condition="'$(PackageExeName)' == ''">RemoteTool.exe</PackageExeName>
+    <PackageDir Condition="'$(PackageDir)' == ''">$(RepoRoot)artifacts\package</PackageDir>
+    <PackageZip Condition="'$(PackageZip)' == ''">$(RepoRoot)artifacts\RemoteTool-$(Version)-$(PackageRid).zip</PackageZip>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Marker.cs" />   <!-- an empty assembly, only so this project builds like any other -->
+  </ItemGroup>
+
+  <Target Name="PackageSingleExe" AfterTargets="Build">
+    <Message Importance="high" Text="Packaging $(PackagedProject) for $(PackageRid) as a single file ..." />
+    <RemoveDir Directories="$(PackageDir)" />
+
+    <!-- Same flags as scripts\publish-app.ps1 -->
+    <Exec Command="&quot;$(PackageDotnet)&quot; publish &quot;$(PackagedProject)&quot; -c Release -r $(PackageRid) --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -p:DebugSymbols=false -o &quot;$(PackageDir)&quot;"
+          StandardOutputImportance="low" />
+
+    <ItemGroup>
+      <_Leftovers Include="$(PackageDir)\**\*.pdb" />
+      <_Leftovers Include="$(PackageDir)\web.config" />
+    </ItemGroup>
+    <Delete Files="@(_Leftovers)" />
+
+    <Error Condition="!Exists('$(PackageDir)\$(PackageExeName)')" Text="Publish did not produce $(PackageDir)\$(PackageExeName)" />
+
+    <GetFileHash Files="$(PackageDir)\$(PackageExeName)" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_ExeHash" />
+    </GetFileHash>
+    <PropertyGroup>
+      <_Sha>%(_ExeHash.FileHash)</_Sha>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(PackageDir)\$(PackageExeName).sha256" Lines="$(_Sha)  $(PackageExeName)" Overwrite="true" />
+
+    <ItemGroup>
+      <_Readme Include="RemoteTool $(Version) - portable package" />
+      <_Readme Include="1. Copy $(PackageExeName) to the PC (any folder, USB stick is fine) and double-click it. No installer, no .NET needed." />
+      <_Readme Include="2. Fully portable: create an empty file named portable.flag next to the exe - settings, ID and logs then stay in a 'data' folder beside it." />
+      <_Readme Include="3. Verify the download:  certutil -hashfile $(PackageExeName) SHA256   must equal the value in $(PackageExeName).sha256" />
+      <_Readme Include="4. Windows 11 / Server 2022 only (TLS 1.3). Unsigned builds trigger SmartScreen: More info -> Run anyway, or sign the exe first (scripts\sign-app.ps1)." />
+      <_Readme Include="5. Relay settings: Allow Access tab -> Settings (see docs\BUILD.md and docs\INTUNE.md for company-wide rollout)." />
+    </ItemGroup>
+    <WriteLinesToFile File="$(PackageDir)\README.txt" Lines="@(_Readme)" Overwrite="true" />
+
+    <Delete Files="$(PackageZip)" />
+    <ZipDirectory SourceDirectory="$(PackageDir)" DestinationFile="$(PackageZip)" />
+
+    <Message Importance="high" Text="----------------------------------------------------------------" />
+    <Message Importance="high" Text="  Single-file exe : $(PackageDir)\$(PackageExeName)" />
+    <Message Importance="high" Text="  SHA-256         : $(_Sha)" />
+    <Message Importance="high" Text="  Zip package     : $(PackageZip)" />
+    <Message Importance="high" Text="----------------------------------------------------------------" />
+  </Target>
+
+</Project>

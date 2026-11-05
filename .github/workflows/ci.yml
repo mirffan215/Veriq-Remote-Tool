@@ -44,3 +44,7 @@ jobs:
       - run: ./scripts/publish-app.ps1
       - uses: actions/upload-artifact@v4
         with: { name: RemoteTool-unsigned, path: artifacts/app/RemoteTool.exe }
+      - name: Build the deployable package (single exe + sha256 + zip)
+        run: dotnet build deploy/RemoteTool.Package -c Release
+      - uses: actions/upload-artifact@v4
+        with: { name: RemoteTool-package, path: artifacts/RemoteTool-*-win-x64.zip }

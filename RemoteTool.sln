@@ -31,6 +31,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{D7BD610A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemoteTool.Bench", "tools\RemoteTool.Bench\RemoteTool.Bench.csproj", "{8C63A91F-F4F5-4F31-939F-070323EA5B14}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "deploy", "deploy", "{A09D183E-3767-4C63-8BFC-62E049935D62}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemoteTool.Package", "deploy\RemoteTool.Package\RemoteTool.Package.csproj", "{E335489D-BCDA-422F-95C7-E4ABA45D9C1B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -40,6 +44,9 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E335489D-BCDA-422F-95C7-E4ABA45D9C1B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E335489D-BCDA-422F-95C7-E4ABA45D9C1B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E335489D-BCDA-422F-95C7-E4ABA45D9C1B}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A3ECA4F3-1887-4514-9C37-365E27F8AB3D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A3ECA4F3-1887-4514-9C37-365E27F8AB3D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A3ECA4F3-1887-4514-9C37-365E27F8AB3D}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -86,6 +93,7 @@ Global
 		{8C63A91F-F4F5-4F31-939F-070323EA5B14}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{E335489D-BCDA-422F-95C7-E4ABA45D9C1B} = {A09D183E-3767-4C63-8BFC-62E049935D62}
 		{A3ECA4F3-1887-4514-9C37-365E27F8AB3D} = {DF515A06-F2DE-4427-9B1C-40533D9535ED}
 		{22475088-1149-476B-ADC0-65B43DE9EB5F} = {9D2366F1-75A0-4EB8-9937-DB3A4C9A5975}
 		{C94FD3BD-2043-404F-B592-CADD7AFA22FC} = {DF515A06-F2DE-4427-9B1C-40533D9535ED}

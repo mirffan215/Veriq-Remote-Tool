@@ -17,8 +17,11 @@ try {
     & "$PSScriptRoot\check-vulnerabilities.ps1"   # supply chain: fails on known-vulnerable packages, or if the scan cannot run
 
     if (-not $SkipTests) {
-        dotnet test RemoteTool.sln -c $Configuration --nologo
-        if ($LASTEXITCODE -ne 0) { throw "Tests failed" }
+        # Test projects individually: the solution also contains deploy\RemoteTool.Package, which would publish the whole app just to run tests.
+        foreach ($t in "Core", "Relay", "Capture") {
+            dotnet test "tests/RemoteTool.$t.Tests" -c $Configuration --nologo
+            if ($LASTEXITCODE -ne 0) { throw "Tests failed ($t)" }
+        }
     }
 
     if (Test-Path $Output) { Remove-Item -Recurse -Force $Output }
