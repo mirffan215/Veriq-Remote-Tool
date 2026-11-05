@@ -92,8 +92,11 @@ public class InstallerAuthoringTests
         var wixproj = File.ReadAllText(Path.Combine(Dir, "RemoteTool.Installer.wixproj"));
         Assert.Contains("RemoteTool.Package.csproj", wixproj);
         Assert.Contains("InstallerPlatform>x64<", wixproj);
+        // The MSI lives in its OWN solution: Visual Studio refuses to load a WiX SDK project when it cannot restore the SDK, and that must not break the main solution.
+        var wixSln = File.ReadAllText(Path.Combine(Root(), "deploy", "RemoteTool.Installer.sln"));
+        Assert.Contains("RemoteTool.Installer.wixproj", wixSln);
         var sln = File.ReadAllText(Path.Combine(Root(), "RemoteTool.sln"));
-        Assert.Contains("RemoteTool.Installer.wixproj", sln);
+        Assert.DoesNotContain("wixproj", sln);
         Assert.Contains("RemoteTool.Package.csproj", sln);
         Assert.Contains("RemoteTool.App.csproj", sln);
     }

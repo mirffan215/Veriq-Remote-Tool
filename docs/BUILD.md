@@ -40,7 +40,7 @@ artifacts\RemoteTool-<version>-win-x64.zip   all of the above, ready to copy or 
 
 ## The MSI installer project (`deploy/RemoteTool.Installer`, WiX Toolset 6)
 Part of the solution (folder *deploy*). **Building it builds the single-file exe first, then wraps it in an MSI:** `artifacts\installer\RemoteTool-<version>-x64.msi`.
-* **Visual Studio:** right-click *RemoteTool.Installer* → **Build** (or Release → Build Solution). Needs the .NET SDK only; the WiX tooling is restored from NuGet. (Optional: the *HeatWave* extension gives WiX editing support.)
+* **Visual Studio:** open **`deploy\RemoteTool.Installer.sln`** (a separate solution, so a WiX load problem never affects the main one) → Build in Release. The WiX SDK is restored from nuget.org: if VS says "project cannot be opened ... referenced SDK cannot be found", check *Tools → NuGet Package Manager → Package Sources* contains nuget.org, or just use the command line below.
 * **Command line:** `dotnet build deploy\RemoteTool.Installer -c Release`
 * **What it does:** per-machine install to `%ProgramFiles%\RemoteTool`, Start-menu shortcut, refuses Windows older than 11 / Server 2022, supports upgrades in place (same UpgradeCode, higher version), and on uninstall removes the unattended service and its firewall rules if present. `%ProgramData%\RemoteTool` (config, logs, recordings) is kept.
 * **Silent / managed install:**
