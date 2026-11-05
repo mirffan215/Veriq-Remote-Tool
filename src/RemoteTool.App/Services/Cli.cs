@@ -64,12 +64,14 @@ internal static class Cli
             var serverTask = Task.Run(async () =>
             {
                 using var c = await listener.AcceptTcpClientAsync(cts.Token);
-                await using var ch = await RemoteTool.Core.Security.TlsChannel.AcceptAsync(c.GetStream(), srvCert.Certificate, cts.Token);
+                var ch = await RemoteTool.Core.Security.TlsChannel.AcceptAsync(c.GetStream(), srvCert.Certificate, cts.Token);
+                await using var serverStream = ch.Stream;
                 return "server side ok";
             });
             using var tcp = new System.Net.Sockets.TcpClient();
             await tcp.ConnectAsync(System.Net.IPAddress.Loopback, port, cts.Token);
-            await using var client = await RemoteTool.Core.Security.TlsChannel.ConnectAsync(tcp.GetStream(), cliCert.Certificate, cts.Token);
+            var client = await RemoteTool.Core.Security.TlsChannel.ConnectAsync(tcp.GetStream(), cliCert.Certificate, cts.Token);
+            await using var clientStream = client.Stream;
             return "TLS 1.3 with mutual certificates works on this computer (" + await serverTask + ")";
         }
         finally { listener.Stop(); }
