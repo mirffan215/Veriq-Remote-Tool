@@ -25,6 +25,56 @@ internal static class Cli
         return 0;
     }
 
+    /// <summary>
+    /// Loopback TLS 1.3 mutual-authentication test with the exact code the app uses. Tells at once whether this Windows can do the handshake.
+    /// Writes the OS details and the full exception chain to a file (the exe has no console).
+    /// </summary>
+    public static int TlsSelfTest(string? file)
+    {
+        var path = file ?? Path.Combine(Path.GetTempPath(), "RemoteTool-tls-selftest.txt");
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"RemoteTool TLS self-test {DateTime.Now:yyyy-MM-dd HH:mm}");
+        sb.AppendLine($"OS: {Environment.OSVersion}   .NET: {Environment.Version}   RemoteTool {typeof(Cli).Assembly.GetName().Version}");
+        try
+        {
+            var ok = RunTlsLoopback().GetAwaiter().GetResult();
+            sb.AppendLine("RESULT: OK - " + ok);
+        }
+        catch (Exception e)
+        {
+            sb.AppendLine("RESULT: FAILED");
+            for (Exception? x = e; x is not null; x = x.InnerException)
+                sb.AppendLine($"  {x.GetType().FullName}: {x.Message}  (HResult 0x{x.HResult:X8})");
+        }
+        File.WriteAllText(path, sb.ToString());
+        MessageBox.Show(sb.ToString() + "\nSaved to: " + path, "RemoteTool");
+        return 0;
+    }
+
+    private static async Task<string> RunTlsLoopback()
+    {
+        using var srvCert = RemoteTool.Core.Security.EphemeralCertificate.Create("selftest-host");
+        using var cliCert = RemoteTool.Core.Security.EphemeralCertificate.Create("selftest-viewer");
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            var serverTask = Task.Run(async () =>
+            {
+                using var c = await listener.AcceptTcpClientAsync(cts.Token);
+                await using var ch = await RemoteTool.Core.Security.TlsChannel.AcceptAsync(c.GetStream(), srvCert.Certificate, cts.Token);
+                return "server side ok";
+            });
+            using var tcp = new System.Net.Sockets.TcpClient();
+            await tcp.ConnectAsync(System.Net.IPAddress.Loopback, port, cts.Token);
+            await using var client = await RemoteTool.Core.Security.TlsChannel.ConnectAsync(tcp.GetStream(), cliCert.Certificate, cts.Token);
+            return "TLS 1.3 with mutual certificates works on this computer (" + await serverTask + ")";
+        }
+        finally { listener.Stop(); }
+    }
+
     public static int ExportRecording(string[] args)
     {
         var i = Array.IndexOf(args, "--export-recording");
