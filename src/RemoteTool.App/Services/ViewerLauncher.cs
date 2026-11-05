@@ -69,7 +69,7 @@ public sealed class ViewerLauncher
                 catch (Exception e) when (e is SocketException or OperationCanceledException && !ct.IsCancellationRequested)
                 {
                     tcp.Dispose();
-                    throw new ConnectFailedException(ConnectFailure.Network, $"Cannot reach {d.Host}:{d.Port}.", e);
+                    throw new ConnectFailedException(ConnectFailure.Network, $"Cannot reach {d.Host}:{d.Port} ({(e is SocketException se ? se.SocketErrorCode.ToString() : "timed out after 15 s")}). Check the address, that RemoteTool is running there, and the firewall.", e);
                 }
             }
             default: throw new ArgumentException("unknown target");
