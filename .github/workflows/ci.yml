@@ -48,3 +48,29 @@ jobs:
         run: dotnet build deploy/RemoteTool.Package -c Release
       - uses: actions/upload-artifact@v4
         with: { name: RemoteTool-package, path: artifacts/RemoteTool-*-win-x64.zip }
+      - name: Build the MSI installer (WiX)
+        run: dotnet build deploy/RemoteTool.Installer -c Release
+      - name: MSI test - install, verify, uninstall (real, on the runner)
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem artifacts/installer -Filter *.msi | Select-Object -First 1
+          if (-not $msi) { throw "no MSI produced" }
+          Write-Host "MSI: $($msi.FullName)  ($([math]::Round($msi.Length/1MB,1)) MB)"
+          $p = Start-Process msiexec -ArgumentList "/i `"$($msi.FullName)`" /qn /l*v install.log RELAY_ADDRESS=relay.test:8443 RELAY_FINGERPRINT=AABBCC" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 80; throw "install failed: $($p.ExitCode)" }
+          $exe = Join-Path $env:ProgramFiles "RemoteTool\RemoteTool.exe"
+          if (-not (Test-Path $exe)) { throw "RemoteTool.exe was not installed" }
+          if ((Get-FileHash $exe).Hash -ne (Get-FileHash artifacts/package/RemoteTool.exe).Hash) { throw "installed exe differs from the packaged exe" }
+          $lnk = Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs\RemoteTool\RemoteTool.lnk"
+          if (-not (Test-Path $lnk)) { throw "Start menu shortcut missing" }
+          if ([Environment]::GetEnvironmentVariable("REMOTETOOL_RELAY", "Machine") -ne "relay.test:8443") { throw "REMOTETOOL_RELAY not set from RELAY_ADDRESS" }
+          if ([Environment]::GetEnvironmentVariable("REMOTETOOL_RELAY_KEY", "Machine")) { throw "an access-key variable must never be created" }
+          $u = Start-Process msiexec -ArgumentList "/x `"$($msi.FullName)`" /qn /l*v uninstall.log" -Wait -PassThru
+          if ($u.ExitCode -ne 0) { Get-Content uninstall.log -Tail 80; throw "uninstall failed: $($u.ExitCode)" }
+          if (Test-Path $exe) { throw "exe still present after uninstall" }
+          if (Test-Path $lnk) { throw "shortcut still present after uninstall" }
+          if ([Environment]::GetEnvironmentVariable("REMOTETOOL_RELAY", "Machine")) { throw "environment variable not removed on uninstall" }
+          Write-Host "MSI install/uninstall test passed"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: RemoteTool-msi, path: "artifacts/installer/*.msi\ninstall.log\nuninstall.log" }

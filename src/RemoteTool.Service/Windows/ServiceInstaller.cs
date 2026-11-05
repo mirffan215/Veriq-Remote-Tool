@@ -58,14 +58,26 @@ public static class ServiceInstaller
         Run(ScCommands.Start(), log);
     }
 
-    public static void Uninstall(ServicePaths paths, bool purgeData, Action<string> log)
+    /// <summary>
+    /// Stops and deletes the service and removes its firewall rules, but leaves the program folder and all data alone. Used by the MSI uninstall
+    /// (Windows Installer removes the files itself) and by <see cref="Uninstall"/>.
+    /// </summary>
+    public static void RemoveService(Action<string> log)
     {
         if (!IsAdministrator()) throw new UnauthorizedAccessException("Administrator rights are required.");
         if (IsInstalled()) { Run(ScCommands.Stop(), log, ignoreErrors: true); WaitStopped(); Run(ScCommands.Delete(), log, ignoreErrors: true); }
         FirewallRules.Apply(InstalledExe, 0, 0, enable: false, log);
+    }
+
+    public static void Uninstall(ServicePaths paths, bool purgeData, Action<string> log)
+    {
+        RemoveService(log);
         try { if (Directory.Exists(InstallDirectory)) Directory.Delete(InstallDirectory, true); } catch (IOException) { log("Could not remove the install folder yet (helper still exiting); remove it manually."); }
         if (purgeData && Directory.Exists(paths.ServiceDir)) Directory.Delete(paths.ServiceDir, true);
     }
+
+    public static void Stop(Action<string> log) { Run(ScCommands.Stop(), log, ignoreErrors: true); WaitStopped(); }
+    public static void Start(Action<string> log) => Run(ScCommands.Start(), log, ignoreErrors: true);
 
     public static void Restart(Action<string> log)
     {

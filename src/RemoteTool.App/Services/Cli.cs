@@ -55,6 +55,29 @@ internal static class Cli
         catch (Exception e) when (e is InvalidOperationException or UnauthorizedAccessException or IOException or ArgumentException) { Log("failed: " + e.Message); return 1; }
     }
 
+    /// <summary>
+    /// Headless service control for the MSI (runs as SYSTEM from Windows Installer): <c>--service-control remove|stop|start</c>.
+    /// Never shows UI. Exit 0 also when the service does not exist (nothing to do).
+    /// </summary>
+    public static int ServiceControl(string[] args)
+    {
+        var i = Array.IndexOf(args, "--service-control");
+        var action = i + 1 < args.Length ? args[i + 1] : "";
+        var logFile = Path.Combine(ServicePaths.Default().Root, "service-control.log");
+        void Log(string m) { try { Directory.CreateDirectory(Path.GetDirectoryName(logFile)!); File.AppendAllText(logFile, $"{DateTime.UtcNow:O} {action}: {m}\n"); } catch (IOException) { } }
+        try
+        {
+            switch (action)
+            {
+                case "remove": ServiceInstaller.RemoveService(Log); return 0;
+                case "stop": if (ServiceInstaller.IsInstalled()) ServiceInstaller.Stop(Log); return 0;
+                case "start": if (ServiceInstaller.IsInstalled()) ServiceInstaller.Start(Log); return 0;
+                default: Log("unknown action"); return 2;
+            }
+        }
+        catch (Exception e) when (e is InvalidOperationException or UnauthorizedAccessException or IOException) { Log("failed: " + e.Message); return 1; }
+    }
+
     public static int VerifyAudit(string[] args)
     {
         var i = Array.IndexOf(args, "--verify-audit");

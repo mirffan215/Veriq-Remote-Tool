@@ -10,6 +10,13 @@ Targets Windows 11. Assumes you have a code-signing certificate (BUILD.md → *C
 ```
 `package-intune.ps1` copies the signed exe plus `deploy/intune/{install,uninstall,detect}.ps1` and bakes the exe's SHA-256 into the detection script.
 
+## 1b. Alternative: deploy the MSI
+Build and sign `RemoteTool-<version>-x64.msi` (BUILD.md → *MSI installer*). In Intune create a **Windows app (Win32)** (wrap the MSI with `IntuneWinAppUtil -s RemoteTool-0.1.0-x64.msi`) or a **Line-of-business (MSI)** app:
+* Install command: `msiexec /i RemoteTool-0.1.0-x64.msi /qn RELAY_ADDRESS=relay1.example.com:443 RELAY_FINGERPRINT=<sha256>`
+* Uninstall command: `msiexec /x {ProductCode} /qn` (the ProductCode changes with every version; Intune's MSI-based detection reads it from the package)
+* Detection: *MSI product code + version* (automatic for MSI apps).
+The relay **access key** still comes from your secret store (platform script / Proactive Remediation setting `REMOTETOOL_RELAY_KEY`), not from the MSI.
+
 ## 2. Create the Win32 app
 | Field | Value |
 |---|---|

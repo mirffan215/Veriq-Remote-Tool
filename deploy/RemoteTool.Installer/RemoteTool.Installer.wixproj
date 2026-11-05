@@ -1,0 +1,38 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+
+  <!--
+    RemoteTool.Installer - builds RemoteTool-<version>-x64.msi (WiX Toolset 6).
+    The MSI contains the single-file RemoteTool.exe produced by deploy\RemoteTool.Package (built automatically first).
+        Visual Studio : right-click RemoteTool.Installer -> Build        (or Release configuration -> Build Solution)
+        Command line  : dotnet build deploy\RemoteTool.Installer -c Release
+        Output        : artifacts\installer\RemoteTool-<version>-x64.msi
+    Silent install    : msiexec /i RemoteTool-0.1.0-x64.msi /qn RELAY_ADDRESS=relay.corp:443 RELAY_FINGERPRINT=<sha256>
+    Overridable (tests): PackageDir (folder holding RemoteTool.exe), SkipPackageBuild=true
+  -->
+
+  <PropertyGroup>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</RepoRoot>
+    <PackageDir Condition="'$(PackageDir)' == ''">$(RepoRoot)artifacts\package</PackageDir>
+    <OutputName>RemoteTool-$(Version)-x64</OutputName>
+    <OutputPath>$(RepoRoot)artifacts\installer\</OutputPath>
+    <!-- Windows Installer ProductVersion is numeric: major.minor.build[.revision] -->
+    <DefineConstants>$(DefineConstants);ProductVersion=$(Version);PackageDir=$(PackageDir)</DefineConstants>
+    <SuppressValidation Condition="!$([MSBuild]::IsOSPlatform('Windows'))">true</SuppressValidation>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" />
+  </ItemGroup>
+
+  <!-- Build the single-file exe first, so the MSI always packages the current build. -->
+  <Target Name="BuildSingleExe" BeforeTargets="BeforeBuild" Condition="'$(SkipPackageBuild)' != 'true'">
+    <MSBuild Projects="$(RepoRoot)deploy\RemoteTool.Package\RemoteTool.Package.csproj" Properties="Configuration=Release" Targets="Restore;Build" />
+  </Target>
+
+  <Target Name="CheckExeExists" BeforeTargets="BeforeBuild" DependsOnTargets="BuildSingleExe">
+    <Error Condition="!Exists('$(PackageDir)\RemoteTool.exe')" Text="$(PackageDir)\RemoteTool.exe not found. Build deploy\RemoteTool.Package first (or the app failed to publish)." />
+  </Target>
+
+</Project>

@@ -38,6 +38,22 @@ artifacts\RemoteTool-<version>-win-x64.zip   all of the above, ready to copy or 
 * It uses the same flags as `scripts\publish-app.ps1` (which additionally runs tests/vulnerability scan and can sign). Sign `artifacts\package\RemoteTool.exe` *before* distributing (`scripts\sign-app.ps1`), then recompute the hash.
 * Version number comes from `<Version>` in `Directory.Build.props`.
 
+## The MSI installer project (`deploy/RemoteTool.Installer`, WiX Toolset 6)
+Part of the solution (folder *deploy*). **Building it builds the single-file exe first, then wraps it in an MSI:** `artifacts\installer\RemoteTool-<version>-x64.msi`.
+* **Visual Studio:** right-click *RemoteTool.Installer* → **Build** (or Release → Build Solution). Needs the .NET SDK only; the WiX tooling is restored from NuGet. (Optional: the *HeatWave* extension gives WiX editing support.)
+* **Command line:** `dotnet build deploy\RemoteTool.Installer -c Release`
+* **What it does:** per-machine install to `%ProgramFiles%\RemoteTool`, Start-menu shortcut, refuses Windows older than 11 / Server 2022, supports upgrades in place (same UpgradeCode, higher version), and on uninstall removes the unattended service and its firewall rules if present. `%ProgramData%\RemoteTool` (config, logs, recordings) is kept.
+* **Silent / managed install:**
+  ```
+  msiexec /i RemoteTool-0.1.0-x64.msi /qn RELAY_ADDRESS=relay1.corp:443,relay2.corp:443 RELAY_FINGERPRINT=<sha256>
+  ```
+  The two properties become the machine environment variables `REMOTETOOL_RELAY` / `REMOTETOOL_RELAY_FP` (first-run defaults for every user). **The relay access key is deliberately not an MSI property** (properties land in logs and the installer cache); deliver it separately, see `docs/INTUNE.md`.
+* **Unattended service** is never enabled by the MSI. After installing, run the explicit elevated step: `RemoteTool.exe --configure-service ...` (docs/SERVICE.md).
+* **Sign it:** `scripts\sign-app.ps1 -File artifacts\installer\RemoteTool-0.1.0-x64.msi -Thumbprint <SHA1>` (sign the exe first, rebuild the MSI, then sign the MSI).
+* **License page:** edit `deploy\RemoteTool.Installer\License.rtf` to your organisation's terms before distributing.
+* **Upgrades:** raise `<Version>` in `Directory.Build.props` for every release. **Never change the UpgradeCode** in `Package.wxs` (a test pins it): doing so makes the new MSI install side by side instead of upgrading.
+* **Status:** the WiX tooling only runs on Windows, so the MSI could not be built where this project was authored. Its authoring is guarded by `InstallerAuthoringTests` (and by mutation checks), and the Windows CI job builds it, installs it, checks the result and uninstalls it. **Treat the first CI result as the real acceptance test.**
+
 ## Relay deployment
 Needs a small VPS/VM (1 vCPU / 512 MB is enough for hundreds of sessions; traffic is the limiter) with **one inbound port** (default 8443/TCP).
 1. Firewall: allow only the relay port inbound (and SSH from your admin network). `/healthz` listens on loopback only.
