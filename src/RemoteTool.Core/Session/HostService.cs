@@ -213,7 +213,8 @@ public sealed partial class HostService : IAsyncDisposable
         catch (OperationCanceledException) { }
         catch (Exception e) when (e is ProtocolException or IOException or EndOfStreamException or System.Security.Authentication.AuthenticationException)
         {
-            _audit.Write("connection_error", ("source", origin.Display), ("error", e.GetType().Name));
+            _audit.Write("connection_error", ("source", origin.Display), ("error", e.GetType().Name),
+                ("detail", ((e.InnerException ?? e).GetType().Name + ": " + (e.InnerException ?? e).Message) is { Length: > 200 } d ? d[..200] : (e.InnerException ?? e).GetType().Name + ": " + (e.InnerException ?? e).Message));
         }
         finally
         {
