@@ -165,3 +165,8 @@ and offered exclusively on non-Windows where the OS allows it). TLS 1.1 and olde
 Why this is acceptable: peer identity never rests on TLS alone - the password/consent proofs are HMACs bound to both certificate fingerprints, so a MITM or a forced downgrade cannot authenticate; mutual certificates are still required.
 What is lost: a downgrade attacker can push a Windows 11 pair from 1.3 to 1.2 (still forward-secret AEAD). No renegotiation or session tickets are used. A managed TLS stack (BouncyCastle) would give 1.3 everywhere but adds a large unaudited dependency; revisit if required.
 Minimum OS: Windows 10 1809 / Server 2019 (build 17763; MSI launch condition).
+
+## D-41 LAN scan and one-click firewall rules (owner request)
+* **Scan** (`NetworkScanner`): TCP connect check only, user-initiated, never public address space (resolved names must also be private), max 4096 targets (/20), 128 parallel / 700 ms timeouts, no payload sent. It is a convenience list, not trust: connecting still goes through the full handshake and Accept/password. Each scan writes a `lan_scan` audit event (counts only).
+* **Firewall**: elevated relaunch (`--firewall add|remove`) using the same `FirewallCommands` as the service: program-scoped, Private+Domain, `localsubnet`; `--wide` widens only to the three private blocks. Never Public profile, never "any". The UI never runs elevated (UAC prompt per action).
+* Found while testing: a dead service-helper pipe made `ReleaseAll()` throw `ObjectDisposedException` out of the session cleanup; it is now contained so audit/recording/slot release always run.

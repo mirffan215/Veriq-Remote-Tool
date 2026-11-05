@@ -77,6 +77,37 @@ internal static class Cli
         finally { listener.Stop(); }
     }
 
+    /// <summary>
+    /// <c>--firewall add|remove [--wide] [--port N]</c>: opens (or closes) the Windows Firewall for THIS exe only: inbound TCP port + UDP discovery port, Private/Domain networks only,
+    /// from the local subnet (or, with --wide, from the internal address blocks 10/8, 172.16/12, 192.168/16). Needs administrator rights; the app starts it through the normal UAC prompt.
+    /// </summary>
+    public static int Firewall(string[] args)
+    {
+        var i = Array.IndexOf(args, "--firewall");
+        var action = i + 1 < args.Length ? args[i + 1] : "";
+        var port = RemoteTool.Core.Config.ConnectTarget.DefaultDirectPort;
+        var p = Array.IndexOf(args, "--port");
+        if (p >= 0 && p + 1 < args.Length && (!int.TryParse(args[p + 1], out port) || port is < 1 or > 65535)) { MessageBox.Show("Invalid port.", "RemoteTool"); return 2; }
+        if (action is not ("add" or "remove")) { MessageBox.Show("Usage: RemoteTool.exe --firewall add|remove [--wide] [--port N]", "RemoteTool"); return 2; }
+        using (var id = System.Security.Principal.WindowsIdentity.GetCurrent())
+            if (!new System.Security.Principal.WindowsPrincipal(id).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator))
+            { MessageBox.Show("Administrator rights are needed to change the Windows Firewall.", "RemoteTool"); return 3; }
+        var log = new List<string>();
+        try
+        {
+            FirewallRules.Apply(Environment.ProcessPath!, port, RemoteTool.Core.Lan.LanProtocol.Port, action == "add", log.Add, args.Contains("--wide"));
+            MessageBox.Show(action == "add"
+                ? $"Windows Firewall now allows RemoteTool on TCP {port} and UDP {RemoteTool.Core.Lan.LanProtocol.Port} ({(args.Contains("--wide") ? "internal networks 10.x / 172.16-31.x / 192.168.x" : "this subnet")}, Private/Domain networks only)."
+                : "The RemoteTool firewall rules were removed.", "RemoteTool");
+            return 0;
+        }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            MessageBox.Show("Could not change the firewall: " + e.Message, "RemoteTool");
+            return 1;
+        }
+    }
+
     public static int ExportRecording(string[] args)
     {
         var i = Array.IndexOf(args, "--export-recording");

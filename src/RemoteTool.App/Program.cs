@@ -12,6 +12,7 @@ namespace RemoteTool.App;
 ///   --service-control X     headless stop|start|remove of the service (used by the MSI)
 ///   --configure-service ... headless install/configure (Intune/SCCM); secrets via environment variables
 ///   --bench-codec FILE      write the tile-JPEG vs H.264 comparison to FILE
+///   --firewall add|remove [--wide] [--port N]  open/close Windows Firewall for this exe (administrator)
 ///   --tls-selftest [FILE]   loopback TLS 1.3 mutual-auth test; writes OS details and result to FILE
 ///   --export-recording F D  decrypt a recording to PNGs / raw H.264 in folder D
 ///   --verify-audit DIR ROLE check the audit log hash chain
@@ -27,6 +28,7 @@ public static class Program
         if (args.Contains("--service-control")) return Cli.ServiceControl(args);
         if (args.Contains("--configure-service")) return Cli.ConfigureService(args);
         if (args.Contains("--bench-codec")) return Cli.BenchCodec(Arg("--bench-codec"));
+        if (args.Contains("--firewall")) return Cli.Firewall(args);
         if (args.Contains("--tls-selftest")) return Cli.TlsSelfTest(Arg("--tls-selftest"));
         if (args.Contains("--export-recording")) return Cli.ExportRecording(args);
         if (args.Contains("--verify-audit")) return Cli.VerifyAudit(args);

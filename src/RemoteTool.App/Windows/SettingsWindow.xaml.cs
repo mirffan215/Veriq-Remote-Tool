@@ -90,6 +90,17 @@ public partial class SettingsWindow : Window
         catch (System.ComponentModel.Win32Exception) { /* user declined the UAC prompt */ }
     }
 
+    /// <summary>Starts this exe elevated (UAC) to add/remove the Windows Firewall rules. The arguments are fixed words and a validated port number, never user text.</summary>
+    private void RunFirewall(string action)
+    {
+        var args = $"--firewall {action}" + (action == "add" && FirewallWideBox.IsChecked == true ? " --wide" : "") + $" --port {_store.Current.DirectPort}";
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, args) { UseShellExecute = true, Verb = "runas" }); }
+        catch (System.ComponentModel.Win32Exception) { /* user declined the UAC prompt */ }
+    }
+
+    private void FirewallAdd_Click(object sender, RoutedEventArgs e) => RunFirewall("add");
+    private void FirewallRemove_Click(object sender, RoutedEventArgs e) => RunFirewall("remove");
+
     private void ClearKey_Click(object sender, RoutedEventArgs e) { _store.Current.RelayAccessKeyProtected = ""; RelayKeyBox.Clear(); _store.Save(); _host.ApplySettings(); }
 
     private void GenerateId_Click(object sender, RoutedEventArgs e)

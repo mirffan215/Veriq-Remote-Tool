@@ -76,6 +76,8 @@ public sealed class ViewerLauncher
         }
     }
 
+    public void AuditScan(int addressesChecked, int found) => _audit.Write("lan_scan", ("addresses", addressesChecked), ("found", found));
+
     /// <summary>"Find PCs on this network": every visible RemoteTool PC on the local subnet(s).</summary>
     public Task<IReadOnlyList<LanHost>> FindLanHostsAsync(CancellationToken ct) => LanDiscovery.DiscoverAsync(TimeSpan.FromMilliseconds(1500), ct);
 

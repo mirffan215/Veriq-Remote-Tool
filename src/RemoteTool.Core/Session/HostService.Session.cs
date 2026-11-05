@@ -127,7 +127,8 @@ public sealed partial class HostService
         }
         finally
         {
-            injector.ReleaseAll(); // never leave a key or button stuck down
+            // never leave a key or button stuck down; a dead helper/pipe must not abort the rest of the cleanup (audit, recording, slot release)
+            try { injector.ReleaseAll(); } catch (Exception e) when (e is IOException or ObjectDisposedException or InvalidOperationException) { }
             clipboard?.Dispose();
             files?.Dispose();
             _activeFiles = null;

@@ -429,6 +429,18 @@ public class LanServiceTests
     }
 
     [Fact]
+    public void WideFirewallModeAllowsOnlyThePrivateAddressBlocks_StillProgramScopedAndNeverPublic()
+    {
+        var rules = RemoteTool.Service.Windows.FirewallCommands.Add(@"C:\Tools\RemoteTool.exe", 21118, 21119, allowOtherInternalSubnets: true);
+        foreach (var r in rules)
+        {
+            Assert.Contains("remoteip=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16", r);
+            Assert.Contains("profile=private,domain", r); Assert.Contains("dir=in", r); Assert.Contains(@"program=C:\Tools\RemoteTool.exe", r);
+            Assert.DoesNotContain(r, a => a.Contains("remoteip=any", StringComparison.OrdinalIgnoreCase) || a.Contains("0.0.0.0/0") || a.Contains("public", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    [Fact]
     public void LanFlagTurnsOnDirectListenerAndVisibility_OnlyWhenAsked()
     {
         var (on, _) = RemoteTool.Service.ServiceSetupArgs.Parse(new[] { "--lan" }, _ => null);

@@ -76,13 +76,21 @@
         <Grid Margin="0,10,0,0">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
           </Grid.RowDefinitions>
           <StackPanel Orientation="Horizontal">
             <Button x:Name="LanFindButton" Content="{loc:T Lan_Find}" Click="LanFind_Click" />
             <TextBlock x:Name="LanStatus" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
           </StackPanel>
-          <ListBox x:Name="LanList" Grid.Row="1" Margin="0,8,0,0" MouseDoubleClick="LanList_DoubleClick" />
+          <Grid Grid.Row="1" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <TextBox x:Name="ScanRangeBox" FlowDirection="LeftToRight" ToolTip="{loc:T Scan_Hint}" />
+            <Button x:Name="ScanButton" Grid.Column="1" Content="{loc:T Scan_Button}" Margin="8,0,0,0" Click="Scan_Click" />
+          </Grid>
+          <TextBlock x:Name="ScanStatus" Grid.Row="2" Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" />
+          <ListBox x:Name="LanList" Grid.Row="3" Margin="0,8,0,0" MouseDoubleClick="LanList_DoubleClick" />
         </Grid>
       </TabItem>
     </TabControl>

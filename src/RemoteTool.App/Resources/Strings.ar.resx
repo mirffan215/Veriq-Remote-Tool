@@ -153,4 +153,18 @@
  <data name="Advanced_Help" xml:space="preserve"><value>غالبًا غير مطلوبة: يمكن لمسؤول النظام ضبطها مسبقًا.</value></data>
  <data name="Security_Code" xml:space="preserve"><value>رمز الأمان: {0}</value></data>
  <data name="Security_Code_Warn" xml:space="preserve"><value>اتصال بنقرة واحدة. اطلب من الطرف الآخر قراءة رمز الأمان لديه - يجب أن يطابق هذا الرمز: {0}. إن لم يتطابق فاضغط رفض.</value></data>
+ <data name="Scan_Button" xml:space="preserve"><value>فحص النطاق</value></data>
+ <data name="Scan_Hint" xml:space="preserve"><value>شبكات أو نطاقات أو عناوين IP أو أسماء أجهزة، مفصولة بفواصل. مثال: 10.10.5.0/24, 10.10.6.10-10.10.6.50, pc01.corp.local</value></data>
+ <data name="Scan_Resolving" xml:space="preserve"><value>جارٍ التحضير…</value></data>
+ <data name="Scan_Progress" xml:space="preserve"><value>جارٍ الفحص… تم فحص {0} من {1} عنوانًا، تم العثور على {2}</value></data>
+ <data name="Scan_Done" xml:space="preserve"><value>تم: {0} جهاز(أجهزة) المنفذ {1} مفتوح فيها (تم فحص {2} عنوانًا). انقر نقرًا مزدوجًا على أحدها لاستخدامه.</value></data>
+ <data name="Scan_Cancelled" xml:space="preserve"><value>تم إلغاء الفحص.</value></data>
+ <data name="Scan_Item" xml:space="preserve"><value>{0}  -  {1}  (المنفذ مفتوح)</value></data>
+ <data name="Scan_ItemNoName" xml:space="preserve"><value>{0}  (المنفذ مفتوح)</value></data>
+ <data name="Err_ScanRange" xml:space="preserve"><value>لا يمكن فحص ذلك: {0}</value></data>
+ <data name="Firewall_Title" xml:space="preserve"><value>جدار حماية Windows</value></data>
+ <data name="Firewall_Help" xml:space="preserve"><value>يسمح لأجهزة أخرى في شبكتك بالوصول إلى هذا الجهاز. يسمح فقط لـ RemoteTool وفقط على الشبكات الخاصة/النطاق. يطلب إذن المسؤول.</value></data>
+ <data name="Firewall_Wide" xml:space="preserve"><value>السماح أيضًا بالشبكات الداخلية الأخرى (10.x و172.16-31.x و192.168.x) - مطلوب عندما تكون الأجهزة في شبكات فرعية مختلفة</value></data>
+ <data name="Firewall_Add" xml:space="preserve"><value>فتح جدار الحماية لـ RemoteTool</value></data>
+ <data name="Firewall_Remove" xml:space="preserve"><value>إزالة قواعد جدار الحماية</value></data>
 </root>

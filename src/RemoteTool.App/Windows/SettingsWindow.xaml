@@ -68,6 +68,13 @@
           <CheckBox x:Name="LanFirstBox" Content="{loc:T Lan_First}" />
           <TextBlock Text="{loc:T Allow_List}" Margin="0,8,0,2" Foreground="{DynamicResource MutedBrush}" />
           <TextBox x:Name="AllowListBox" FlowDirection="LeftToRight" />
+          <TextBlock Text="{loc:T Firewall_Title}" FontWeight="SemiBold" Margin="0,16,0,0" />
+          <TextBlock Text="{loc:T Firewall_Help}" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
+          <CheckBox x:Name="FirewallWideBox" Content="{loc:T Firewall_Wide}" Margin="0,6,0,0" />
+          <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+            <Button Content="{loc:T Firewall_Add}" Click="FirewallAdd_Click" />
+            <Button Content="{loc:T Firewall_Remove}" Click="FirewallRemove_Click" />
+          </StackPanel>
           <Button Content="{loc:T Generate_Id}" Margin="0,14,0,0" HorizontalAlignment="Left" Click="GenerateId_Click" />
         </StackPanel>
       </Expander>

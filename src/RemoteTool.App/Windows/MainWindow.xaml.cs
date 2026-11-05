@@ -3,6 +3,7 @@ using System.Windows.Input;
 using RemoteTool.App.Localization;
 using RemoteTool.App.Services;
 using RemoteTool.Core.Config;
+using RemoteTool.Core.Lan;
 using RemoteTool.Core.Relay;
 using RemoteTool.Core.Security;
 using RemoteTool.Core.Session;
@@ -32,11 +33,13 @@ public partial class MainWindow : Window
         _host = host;
         _viewer = viewer;
         _access = access;
+        LanList.ItemsSource = _found;
+        ScanRangeBox.Text = string.Join(", ", NetworkScanner.LocalNetworks());
         RefreshRecent();
         RefreshAddresses();
         RefreshState();
         _host.StateChanged += RefreshState;
-        Closing += (_, _) => _connectCts?.Cancel();
+        Closing += (_, _) => { _connectCts?.Cancel(); _scanCts?.Cancel(); };
         Loaded += (_, _) => TargetBox.Focus();
     }
 
@@ -150,6 +153,15 @@ public partial class MainWindow : Window
 
     private sealed record LanItem(string Endpoint, string Label) { public override string ToString() => Label; }
 
+    private readonly System.Collections.ObjectModel.ObservableCollection<LanItem> _found = new();
+    private CancellationTokenSource? _scanCts;
+
+    private void AddFound(string endpoint, string label)
+    {
+        if (_found.Any(f => f.Endpoint == endpoint)) return;
+        _found.Add(new LanItem(endpoint, label));
+    }
+
     private async void LanFind_Click(object sender, RoutedEventArgs e)
     {
         LanFindButton.IsEnabled = false;
@@ -157,10 +169,45 @@ public partial class MainWindow : Window
         try
         {
             var hosts = await _viewer.FindLanHostsAsync(CancellationToken.None);
-            LanList.ItemsSource = hosts.Select(h => new LanItem(h.Endpoint, Loc.F("Lan_Item", h.Name, ConnectionId.Format(h.Id), h.Endpoint))).ToList();
+            foreach (var h in hosts) AddFound(h.Endpoint, Loc.F("Lan_Item", h.Name, ConnectionId.Format(h.Id), h.Endpoint));
             LanStatus.Text = hosts.Count == 0 ? "  " + Loc.T("Lan_None") : "";
         }
         finally { LanFindButton.IsEnabled = true; }
+    }
+
+    /// <summary>
+    /// Scans internal networks / ranges / computer names for the RemoteTool port. Only private address space, size-capped, TCP connect only.
+    /// The scan never contacts RemoteTool itself: finding the port open proves nothing, the connection still needs Accept or a password.
+    /// </summary>
+    private async void Scan_Click(object sender, RoutedEventArgs e)
+    {
+        if (_scanCts is not null) { _scanCts.Cancel(); return; }      // the button doubles as Cancel while a scan runs
+        var cts = _scanCts = new CancellationTokenSource();
+        ScanButton.Content = Loc.T("Cancel");
+        try
+        {
+            var text = ScanRangeBox.Text.Trim();
+            if (text.Length == 0) { text = string.Join(", ", NetworkScanner.LocalNetworks()); ScanRangeBox.Text = text; }
+            ScanStatus.Text = Loc.T("Scan_Resolving");
+            var targets = await NetworkScanner.ParseAsync(text, cts.Token);
+            if (!targets.Ok) { ScanStatus.Text = Loc.F("Err_ScanRange", targets.Error ?? ""); return; }
+            var port = ConnectTarget.DefaultDirectPort;
+            var total = targets.Addresses.Count;
+            var found = 0;
+            var progress = new Progress<ScanProgress>(p => ScanStatus.Text = Loc.F("Scan_Progress", p.Checked, p.Total, p.Found));
+            await NetworkScanner.ScanAsync(targets.Addresses, port, hit =>
+            {
+                Dispatcher.InvokeAsync(() =>
+                {
+                    Interlocked.Increment(ref found);
+                    AddFound(hit.Endpoint, hit.HostName is { Length: > 0 } n ? Loc.F("Scan_Item", n, hit.Endpoint) : Loc.F("Scan_ItemNoName", hit.Endpoint));
+                });
+            }, progress, ct: cts.Token);
+            _viewer.AuditScan(total, found);
+            ScanStatus.Text = Loc.F("Scan_Done", found, port, total);
+        }
+        catch (OperationCanceledException) { ScanStatus.Text = Loc.T("Scan_Cancelled"); }
+        finally { ScanButton.Content = Loc.T("Scan_Button"); _scanCts = null; cts.Dispose(); }
     }
 
     /// <summary>Discovery results are hints only: choosing one just fills in ip:port - the other person still has to accept (or you need a password).</summary>

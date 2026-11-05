@@ -315,6 +315,8 @@ public class SecurityAttackTests
     [Fact]
     public async Task AuthenticatedFuzzing_RandomFramesNeverCrashOrWedgeTheHost()
     {
+        // Flush tasks leaked by tests that ran BEFORE this one, so only this test's own background tasks are judged.
+        GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
         var unobserved = new List<Exception>();
         EventHandler<UnobservedTaskExceptionEventArgs> h = (_, e) => { lock (unobserved) unobserved.Add(e.Exception); };
         TaskScheduler.UnobservedTaskException += h;

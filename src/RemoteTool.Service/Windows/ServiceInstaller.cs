@@ -133,11 +133,18 @@ public static class FirewallCommands
 {
     public const string TcpRule = "RemoteToolLAN-TCP", UdpRule = "RemoteToolLAN-Discovery";
 
-    public static IReadOnlyList<string[]> Add(string exePath, int tcpPort, int udpPort) => new[]
+    /// <summary>"Also allow other internal subnets": the three private address blocks. Still never Public networks, never the internet.</summary>
+    public const string PrivateRanges = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16";
+
+    public static IReadOnlyList<string[]> Add(string exePath, int tcpPort, int udpPort, bool allowOtherInternalSubnets = false)
     {
-        Rule(TcpRule, exePath, "TCP", tcpPort),
-        Rule(UdpRule, exePath, "UDP", udpPort),
-    };
+        var remote = allowOtherInternalSubnets ? PrivateRanges : "localsubnet";
+        return new[]
+        {
+            Rule(TcpRule, exePath, "TCP", tcpPort, remote),
+            Rule(UdpRule, exePath, "UDP", udpPort, remote),
+        };
+    }
 
     public static IReadOnlyList<string[]> Remove() => new[]
     {
@@ -145,21 +152,21 @@ public static class FirewallCommands
         new[] { "advfirewall", "firewall", "delete", "rule", $"name={UdpRule}" },
     };
 
-    private static string[] Rule(string name, string exe, string proto, int port) => new[]
+    private static string[] Rule(string name, string exe, string proto, int port, string remote) => new[]
     {
         "advfirewall", "firewall", "add", "rule", $"name={name}", "dir=in", "action=allow", $"program={exe}", $"protocol={proto}",
-        $"localport={port}", "profile=private,domain", "remoteip=localsubnet", "enable=yes",
+        $"localport={port}", "profile=private,domain", $"remoteip={remote}", "enable=yes",
     };
 }
 
 [SupportedOSPlatform("windows")]
 public static class FirewallRules
 {
-    public static void Apply(string exePath, int tcpPort, int udpPort, bool enable, Action<string> log)
+    public static void Apply(string exePath, int tcpPort, int udpPort, bool enable, Action<string> log, bool allowOtherInternalSubnets = false)
     {
         foreach (var rm in FirewallCommands.Remove()) Run(rm, log);          // idempotent: replace any previous rule
         if (!enable) return;
-        foreach (var add in FirewallCommands.Add(exePath, tcpPort, udpPort)) Run(add, log);
+        foreach (var add in FirewallCommands.Add(exePath, tcpPort, udpPort, allowOtherInternalSubnets)) Run(add, log);
     }
 
     private static void Run(string[] args, Action<string> log)

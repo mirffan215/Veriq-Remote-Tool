@@ -153,4 +153,18 @@ It will be saved in the "RemoteTool Received" folder. Only accept files you expe
  <data name="Advanced_Help" xml:space="preserve"><value>Normally not needed: your administrator can pre-configure these.</value></data>
  <data name="Security_Code" xml:space="preserve"><value>Security code: {0}</value></data>
  <data name="Security_Code_Warn" xml:space="preserve"><value>Click-only connection. Ask the other person to read you their security code - it must match this one: {0}. If it does not match, press Deny.</value></data>
+ <data name="Scan_Button" xml:space="preserve"><value>Scan range</value></data>
+ <data name="Scan_Hint" xml:space="preserve"><value>Networks, ranges, IP addresses or computer names, separated by commas. Example: 10.10.5.0/24, 10.10.6.10-10.10.6.50, pc01.corp.local</value></data>
+ <data name="Scan_Resolving" xml:space="preserve"><value>Preparing…</value></data>
+ <data name="Scan_Progress" xml:space="preserve"><value>Scanning… {0} of {1} addresses checked, {2} found</value></data>
+ <data name="Scan_Done" xml:space="preserve"><value>Done: {0} computer(s) with port {1} open ({2} addresses checked). Double-click one to use it.</value></data>
+ <data name="Scan_Cancelled" xml:space="preserve"><value>Scan cancelled.</value></data>
+ <data name="Scan_Item" xml:space="preserve"><value>{0}  -  {1}  (port open)</value></data>
+ <data name="Scan_ItemNoName" xml:space="preserve"><value>{0}  (port open)</value></data>
+ <data name="Err_ScanRange" xml:space="preserve"><value>Cannot scan that: {0}</value></data>
+ <data name="Firewall_Title" xml:space="preserve"><value>Windows Firewall</value></data>
+ <data name="Firewall_Help" xml:space="preserve"><value>Lets other computers on your network reach this one. Allows only RemoteTool, only on Private/Domain networks. Asks for administrator permission.</value></data>
+ <data name="Firewall_Wide" xml:space="preserve"><value>Also allow other internal networks (10.x, 172.16-31.x, 192.168.x) - needed when computers are on different subnets</value></data>
+ <data name="Firewall_Add" xml:space="preserve"><value>Open firewall for RemoteTool</value></data>
+ <data name="Firewall_Remove" xml:space="preserve"><value>Remove firewall rules</value></data>
 </root>

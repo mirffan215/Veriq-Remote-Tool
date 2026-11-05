@@ -31,9 +31,9 @@ public sealed class PipeInputInjector : IInputInjector, ISpecialKeys
     private readonly ISasSender _sas;
     public PipeInputInjector(HelperChannel channel, ISasSender sas) { _ch = channel; _sas = sas; }
 
-    public void Mouse(MonitorInfo monitor, MouseEventMessage e) { try { _ch.SendMouseAsync(monitor, e).GetAwaiter().GetResult(); } catch (IOException) { } }
-    public void Key(KeyEventMessage e) { try { _ch.SendKeyAsync(e).GetAwaiter().GetResult(); } catch (IOException) { } }
-    public void ReleaseAll() { try { _ch.ReleaseAllAsync().GetAwaiter().GetResult(); } catch (IOException) { } }
+    public void Mouse(MonitorInfo monitor, MouseEventMessage e) { try { _ch.SendMouseAsync(monitor, e).GetAwaiter().GetResult(); } catch (Exception ex) when (ex is IOException or ObjectDisposedException) { } }
+    public void Key(KeyEventMessage e) { try { _ch.SendKeyAsync(e).GetAwaiter().GetResult(); } catch (Exception ex) when (ex is IOException or ObjectDisposedException) { } }
+    public void ReleaseAll() { try { _ch.ReleaseAllAsync().GetAwaiter().GetResult(); } catch (Exception ex) when (ex is IOException or ObjectDisposedException) { } }
     public void SendCtrlAltDel() => _sas.SendSas();
     public void Dispose() { }
 }
