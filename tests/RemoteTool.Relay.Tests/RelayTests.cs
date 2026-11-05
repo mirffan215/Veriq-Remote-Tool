@@ -40,12 +40,12 @@ public class RelayTests
     public async Task ViewerReachesHostByIdThroughRelay_EndToEnd_AndRelayCarriesOnlyCiphertext()
     {
         await using var rig = await RelayRig.StartAsync();
-        var (host, _, ids, _, inj) = await StartHost(rig, "482913756");
+        var (host, _, ids, _, inj) = await StartHost(rig, "482913756012");
         await using var _h = host;
         await RelayRig.WaitFor(() => host.RelayStatus == RelayStatus.Online);
         Assert.Equal(1, rig.Engine.RegisteredHosts);
 
-        var stream = await RelayClient.ConnectToHostAsync(rig.Endpoint(), "482913756", default);
+        var stream = await RelayClient.ConnectToHostAsync(rig.Endpoint(), "482913756012", default);
         const string viewerName = "VIEWERMARKER-ALICE";
         var password = host.Password;
         await using var v = await ViewerSession.ConnectAsync(stream, viewerName, password, new ListAudit(), Permissions.All, default);
@@ -72,8 +72,8 @@ public class RelayTests
     public async Task UnknownAndOfflineIdsGetTheSameGenericAnswer()
     {
         await using var rig = await RelayRig.StartAsync();
-        var e1 = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(rig.Endpoint(), "111111111", default));
-        var e2 = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(rig.Endpoint(), "999999999", default));
+        var e1 = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(rig.Endpoint(), "111111111012", default));
+        var e2 = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(rig.Endpoint(), "999999999012", default));
         Assert.Equal(ConnectFailure.NotFound, e1.Failure);
         Assert.Equal(e1.Message, e2.Message);
     }
@@ -82,13 +82,13 @@ public class RelayTests
     public async Task WrongAccessKeyIsRefused()
     {
         await using var rig = await RelayRig.StartAsync();
-        var (host, _, _, _, _) = await StartHost(rig, "555555555");
+        var (host, _, _, _, _) = await StartHost(rig, "555555555012");
         await using var _h = host;
         await RelayRig.WaitFor(() => host.RelayStatus == RelayStatus.Online);
-        var e = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(rig.Endpoint("wrong-key"), "555555555", default));
+        var e = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(rig.Endpoint("wrong-key"), "555555555012", default));
         Assert.Equal(ConnectFailure.NotFound, e.Failure);
 
-        var (badHost, _, _, _, _) = await StartHost(rig, "666666666", key: "wrong-key");
+        var (badHost, _, _, _, _) = await StartHost(rig, "666666666012", key: "wrong-key");
         await using var _b = badHost;
         await RelayRig.WaitFor(() => badHost.RelayStatus == RelayStatus.AccessDenied);
         Assert.Equal(1, rig.Engine.RegisteredHosts);
@@ -99,21 +99,21 @@ public class RelayTests
     {
         await using var rig = await RelayRig.StartAsync();
         var bad = rig.Endpoint(fp: new string('A', 64));
-        await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(bad, "123456789", default));
+        await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(bad, "123456789012", default));
     }
 
     [Fact]
     public async Task DuplicateIdOnAnotherLiveHostForcesRegeneration()
     {
         await using var rig = await RelayRig.StartAsync();
-        var (first, _, ids1, _, _) = await StartHost(rig, "777000111");
+        var (first, _, ids1, _, _) = await StartHost(rig, "777000111012");
         await using var _f = first;
         await RelayRig.WaitFor(() => first.RelayStatus == RelayStatus.Online);
 
-        var (copy, _, ids2, audit2, _) = await StartHost(rig, "777000111"); // e.g. copied exe + settings file
+        var (copy, _, ids2, audit2, _) = await StartHost(rig, "777000111012"); // e.g. copied exe + settings file
         await using var _c = copy;
         await RelayRig.WaitFor(() => ids2.Regenerations == 1);
-        Assert.NotEqual("777000111", ids2.Id);
+        Assert.NotEqual("777000111012", ids2.Id);
         await RelayRig.WaitFor(() => copy.RelayStatus == RelayStatus.Online);
         Assert.Equal(0, ids1.Regenerations);
         Assert.Equal(2, rig.Engine.RegisteredHosts);
@@ -124,24 +124,24 @@ public class RelayTests
     public async Task HostGoesOfflineWhenItDisconnects()
     {
         await using var rig = await RelayRig.StartAsync();
-        var (host, _, _, _, _) = await StartHost(rig, "321654987");
+        var (host, _, _, _, _) = await StartHost(rig, "321654987012");
         await RelayRig.WaitFor(() => rig.Engine.RegisteredHosts == 1);
         await host.DisposeAsync();
         await RelayRig.WaitFor(() => rig.Engine.RegisteredHosts == 0);
-        await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(rig.Endpoint(), "321654987", default));
+        await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(rig.Endpoint(), "321654987012", default));
     }
 
     [Fact]
     public async Task FailedLookupsAreRateLimitedPerIp_EvenForValidIds()
     {
         await using var rig = await RelayRig.StartAsync(o => o.FailedLookupsPerMinutePerIp = 3);
-        var (host, _, _, _, _) = await StartHost(rig, "246813579");
+        var (host, _, _, _, _) = await StartHost(rig, "246813579012");
         await using var _h = host;
         await RelayRig.WaitFor(() => host.RelayStatus == RelayStatus.Online);
         for (var i = 0; i < 3; i++)
-            await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(rig.Endpoint(), "100000000", default));
+            await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(rig.Endpoint(), "100000000012", default));
         // Now the source is throttled: a lookup of a perfectly valid, online ID gets the same generic NotFound.
-        var e = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(rig.Endpoint(), "246813579", default));
+        var e = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(rig.Endpoint(), "246813579012", default));
         Assert.Equal(ConnectFailure.NotFound, e.Failure);
     }
 
@@ -164,12 +164,12 @@ public class RelayTests
         var dead = Dead(rigB);
         var inj = new FakeInjector();
         await using var host = new HostService(() => new FakeProducer(), () => inj, new FakeConsent(), new ListAudit(), new HostPolicy("FAILOVER-PC"));
-        host.StartRelay(new[] { dead, rigB.Endpoint() }, new FixedId("135792468"), new RelayRegistrationOptions(TimeSpan.FromMilliseconds(100), 2));
+        host.StartRelay(new[] { dead, rigB.Endpoint() }, new FixedId("135792468012"), new RelayRegistrationOptions(TimeSpan.FromMilliseconds(100), 2));
         await RelayRig.WaitFor(() => host.RelayStatus == RelayStatus.Online, 20);
         Assert.Equal(1, rigB.Engine.RegisteredHosts);
 
         await using var rigA = await RelayRig.StartAsync();   // knows nothing about this host
-        var stream = await RelayClient.ConnectToHostAsync(new[] { dead, rigA.Endpoint(), rigB.Endpoint() }, "135792468", default);
+        var stream = await RelayClient.ConnectToHostAsync(new[] { dead, rigA.Endpoint(), rigB.Endpoint() }, "135792468012", default);
         await using var v = await ViewerSession.ConnectAsync(stream, "alice", host.Password, new ListAudit(), Permissions.All, default);
         Assert.Equal("FAILOVER-PC", v.HostName);
     }
@@ -178,9 +178,9 @@ public class RelayTests
     public async Task AllRelaysUnknownGivesGenericNotFound_AllDownGivesNetworkError()
     {
         await using var rig = await RelayRig.StartAsync();
-        var e1 = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(new[] { Dead(rig), rig.Endpoint() }, "246802468", default));
+        var e1 = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(new[] { Dead(rig), rig.Endpoint() }, "246802468012", default));
         Assert.Equal(ConnectFailure.NotFound, e1.Failure);
-        var e2 = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(new[] { Dead(rig) }, "246802468", default));
+        var e2 = await Assert.ThrowsAsync<ConnectFailedException>(() => RelayClient.ConnectToHostAsync(new[] { Dead(rig) }, "246802468012", default));
         Assert.Equal(ConnectFailure.Network, e2.Failure);
     }
 

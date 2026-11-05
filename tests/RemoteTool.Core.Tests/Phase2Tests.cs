@@ -418,9 +418,9 @@ public class Phase2SessionTests
         {
             var f = Path.Combine(dir, "settings.json");
             var s = new SettingsStore(f); s.Load();
-            s.UpsertAddress("482 913 756", "Reception PC");
+            s.UpsertAddress("482 913 756 012", "Reception PC");
             s.UpsertAddress("10.0.0.5:21118", "Lab");
-            s.UpsertAddress("482 913 756", "Front desk");
+            s.UpsertAddress("482 913 756 012", "Front desk");
             Assert.Equal(2, s.Current.AddressBook.Count);
             var reloaded = new SettingsStore(f); reloaded.Load();
             Assert.Contains(reloaded.Current.AddressBook, a => a.Nickname == "Front desk");

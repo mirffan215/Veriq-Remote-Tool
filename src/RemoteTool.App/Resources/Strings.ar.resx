@@ -56,7 +56,7 @@
  <data name="Viewer_Disconnect" xml:space="preserve"><value>قطع الاتصال</value></data>
  <data name="Viewer_Stats" xml:space="preserve"><value>{0} إطار/ث · {1} م‌ث · {2} ك.ب/ث</value></data>
  <data name="Viewer_ViewOnly" xml:space="preserve"><value>للعرض فقط</value></data>
- <data name="Err_BadTarget" xml:space="preserve"><value>أدخل معرّفًا من 9 أرقام أو host:port.</value></data>
+ <data name="Err_BadTarget" xml:space="preserve"><value>أدخل رمزًا من 10 إلى 12 رقمًا أو host:port.</value></data>
  <data name="Err_NoRelay" xml:space="preserve"><value>لم يتم إعداد خادم مرحّل (تبويب السماح بالوصول ← الإعدادات).</value></data>
  <data name="Err_Failed" xml:space="preserve"><value>فشل الاتصال: {0}</value></data>
  <data name="Session_Ended" xml:space="preserve"><value>انتهت الجلسة ({0}).</value></data>

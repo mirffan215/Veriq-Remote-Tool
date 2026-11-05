@@ -56,7 +56,7 @@
  <data name="Viewer_Disconnect" xml:space="preserve"><value>Disconnect</value></data>
  <data name="Viewer_Stats" xml:space="preserve"><value>{0} FPS · {1} ms · {2} KB/s</value></data>
  <data name="Viewer_ViewOnly" xml:space="preserve"><value>View only</value></data>
- <data name="Err_BadTarget" xml:space="preserve"><value>Enter a 9-digit ID or host:port.</value></data>
+ <data name="Err_BadTarget" xml:space="preserve"><value>Enter a 10–12 digit code or host:port.</value></data>
  <data name="Err_NoRelay" xml:space="preserve"><value>No relay server is configured (Allow Access tab → Settings).</value></data>
  <data name="Err_Failed" xml:space="preserve"><value>Connection failed: {0}</value></data>
  <data name="Session_Ended" xml:space="preserve"><value>Session ended ({0}).</value></data>

@@ -18,7 +18,7 @@ public sealed record RegisterMessage(string AccessKey, string Id, byte[] Instanc
     {
         var r = new ProtoReader(p);
         if (r.U16() != ProtocolConstants.Version) throw new ProtocolException("version mismatch");
-        var m = new RegisterMessage(r.Str(RelayLimits.MaxAccessKeyChars), r.Str(9), r.Fixed(RelayLimits.InstanceIdLength));
+        var m = new RegisterMessage(r.Str(RelayLimits.MaxAccessKeyChars), r.Str(Config.ConnectionId.MaxLength), r.Fixed(RelayLimits.InstanceIdLength));
         r.EnsureEnd();
         return m;
     }
@@ -44,7 +44,7 @@ public sealed record AcceptMessage(string AccessKey, string Id, byte[] Token)
     public static AcceptMessage Parse(byte[] p)
     {
         var r = new ProtoReader(p);
-        var m = new AcceptMessage(r.Str(RelayLimits.MaxAccessKeyChars), r.Str(9), r.Fixed(RelayLimits.TokenLength));
+        var m = new AcceptMessage(r.Str(RelayLimits.MaxAccessKeyChars), r.Str(Config.ConnectionId.MaxLength), r.Fixed(RelayLimits.TokenLength));
         r.EnsureEnd();
         return m;
     }
@@ -57,7 +57,7 @@ public sealed record ConnectMessage(string AccessKey, string Id)
     public static ConnectMessage Parse(byte[] p)
     {
         var r = new ProtoReader(p);
-        var m = new ConnectMessage(r.Str(RelayLimits.MaxAccessKeyChars), r.Str(9));
+        var m = new ConnectMessage(r.Str(RelayLimits.MaxAccessKeyChars), r.Str(Config.ConnectionId.MaxLength));
         r.EnsureEnd();
         return m;
     }

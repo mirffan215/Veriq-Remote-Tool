@@ -100,7 +100,7 @@ Failure codes: 1 BadPassword, 2 Blocked, 3 Busy, 4 VersionMismatch, 5 NotAllowed
 
 | Type | Name | Payload | Meaning |
 |---|---|---|---|
-| 0x80 | Register | `u16 ver, str accessKey, str id(9), 16B instanceId` | host announces its ID (long-lived connection) |
+| 0x80 | Register | `u16 ver, str accessKey, str id(10–12), 16B instanceId` | host announces its ID (long-lived connection) |
 | 0x81 | Registered | – | ok |
 | 0x82 | IdTaken | – | ID registered by another live host (different instanceId) |
 | 0x83 | Denied | – | bad access key / invalid ID / registry full / rate-limited |

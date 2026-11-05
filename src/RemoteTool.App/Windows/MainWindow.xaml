@@ -9,7 +9,7 @@
         <StackPanel Margin="24,18,24,24">
           <TextBlock Text="{loc:T Your_Id}" Foreground="{DynamicResource MutedBrush}" />
           <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-            <TextBlock x:Name="IdText" FlowDirection="LeftToRight" FontSize="40" FontWeight="SemiBold" FontFamily="Consolas" VerticalAlignment="Center" />
+            <TextBlock x:Name="IdText" FlowDirection="LeftToRight" FontSize="32" FontWeight="SemiBold" FontFamily="Consolas" VerticalAlignment="Center" />
             <Button x:Name="CopyIdButton" Content="{loc:T Copy}" Margin="16,0,0,0" VerticalAlignment="Center" Click="CopyId_Click" />
           </StackPanel>
 

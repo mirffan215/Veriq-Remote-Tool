@@ -83,7 +83,7 @@ SkiaSharp 2.88.9 (JPEG/PNG), Vortice.MediaFoundation 3.8.3 (Media Foundation COM
 xunit.runner.visualstudio 2.8.2, SkiaSharp.NativeAssets.Linux.NoDependencies 2.88.9. Framework: .NET 8, ASP.NET Core 8 (relay). No other runtime dependencies.
 
 ## Manual test checklist (two PCs, ideally on different networks)
-1. Copy `RemoteTool.exe` to PC A and PC B (no installer). Start both: each shows its own 9-digit ID + password; **restart A → same ID**.
+1. Copy `RemoteTool.exe` to PC A and PC B (no installer). Start both: each shows its own 12-digit code + password; **restart A → same ID**.
 2. Configure the same relay on both → status "Relay: Online". Check the relay log shows the ID but no content.
 3. On B enter A's ID + password → A shows the consent dialog (Deny is the default button) → Allow → B sees A's screen and can type/click smoothly (≥15 FPS on LAN).
 4. A shows the red banner; click **Disconnect** → B's window reports the end. Reconnect (new password needed) and test **Ctrl+Alt+Shift+Q** on A.

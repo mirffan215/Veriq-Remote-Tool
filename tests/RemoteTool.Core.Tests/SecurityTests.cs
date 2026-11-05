@@ -53,22 +53,50 @@ public class SecurityTests
     }
 
     [Fact]
-    public void IdsAreNineDigitsNeverLeadingZero()
+    public void IdsAreTwelveDigitsNeverLeadingZero_AndRandom()
     {
         var seen = new HashSet<string>();
-        for (var i = 0; i < 2000; i++)
+        var digitCounts = new int[10];
+        for (var i = 0; i < 20000; i++)
         {
             var id = ConnectionId.Generate();
+            Assert.Equal(12, id.Length);
             Assert.True(ConnectionId.IsValid(id));
+            Assert.NotEqual('0', id[0]);
             seen.Add(id);
+            foreach (var c in id[1..]) digitCounts[c - '0']++;
         }
-        Assert.True(seen.Count > 1990);
-        Assert.Equal("123 456 789", ConnectionId.Format("123456789"));
+        Assert.Equal(20000, seen.Count);                                   // no collisions in 20k draws
+        var expected = 20000 * 11 / 10.0;                                   // 11 free digits per ID, uniform
+        Assert.All(digitCounts, n => Assert.InRange(n, expected * 0.95, expected * 1.05));   // no digit bias
     }
 
     [Theory]
-    [InlineData("123 456 789", "ById")]
-    [InlineData("123456789", "ById")]
+    [InlineData(10, "123 456 789 0")]
+    [InlineData(11, "123 456 789 01")]
+    [InlineData(12, "123 456 789 012")]
+    public void AcceptedLengthsFormatInGroupsOfThree(int length, string expected)
+    {
+        var id = "123456789012"[..length];
+        Assert.True(ConnectionId.IsValid(id));
+        Assert.Equal(expected, ConnectionId.Format(id));
+        Assert.True(ConnectionId.TryParseId(expected, out var parsed));
+        Assert.Equal(id, parsed);
+        Assert.Equal(length, ConnectionId.Generate(length).Length);
+    }
+
+    [Theory]
+    [InlineData("123456789")]          // 9 digits: too short
+    [InlineData("1234567890123")]      // 13 digits: too long
+    [InlineData("0123456789012")]
+    [InlineData("012345678901")]       // leading zero
+    [InlineData("12345678901a")]
+    [InlineData("")]
+    public void InvalidCodesAreRejected(string id) => Assert.False(ConnectionId.IsValid(id));
+
+    [Theory]
+    [InlineData("123 456 789 012", "ById")]
+    [InlineData("1234567890", "ById")]
     [InlineData("192.168.1.5:21118", "Direct")]
     [InlineData("pc-01.corp.local", "Direct")]
     [InlineData("[::1]:9000", "Direct")]
@@ -83,6 +111,7 @@ public class SecurityTests
     [InlineData("host:99999")]
     [InlineData("host with space")]
     [InlineData("012 345 678:x")]
+    [InlineData("123 456 789")]
     public void ConnectTargetRejectsGarbage(string input) => Assert.False(ConnectTarget.TryParse(input, out _));
 
     [Fact]
