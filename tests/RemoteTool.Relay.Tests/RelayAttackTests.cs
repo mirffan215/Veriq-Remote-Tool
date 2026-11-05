@@ -123,14 +123,17 @@ public class RelayAttackTests
     }
 
     [Fact]
-    public async Task RelayRefusesTlsOlderThan13()
+    public async Task RelayRefusesTlsOlderThan12()
     {
         await using var rig = await RelayRig.StartAsync();
         using var tcp = new TcpClient(); await tcp.ConnectAsync("127.0.0.1", rig.Port);
         await using var ssl = new SslStream(tcp.GetStream(), false, (_, _, _, _) => true);
         await Assert.ThrowsAnyAsync<Exception>(async () => await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
         {
-            TargetHost = "127.0.0.1", EnabledSslProtocols = SslProtocols.Tls12,
+            TargetHost = "127.0.0.1",
+#pragma warning disable SYSLIB0039
+            EnabledSslProtocols = SslProtocols.Tls11,
+#pragma warning restore SYSLIB0039
         }));
     }
 

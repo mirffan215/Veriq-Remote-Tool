@@ -33,7 +33,8 @@ public static class RelayHost
                 lo.UseHttps(https =>
                 {
                     https.ServerCertificate = cert;
-                    https.SslProtocols = SslProtocols.Tls13;
+                    https.SslProtocols = RemoteTool.Core.Security.TlsPolicy.Protocols;
+                    https.OnAuthenticate = (_, o) => o.CipherSuitesPolicy = RemoteTool.Core.Security.TlsPolicy.OfferedSuites();
                 });
                 lo.UseConnectionHandler<RelayConnectionHandler>();
             });

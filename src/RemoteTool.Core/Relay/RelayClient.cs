@@ -4,6 +4,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using RemoteTool.Core.Protocol;
+using RemoteTool.Core.Security;
 using RemoteTool.Core.Session;
 
 namespace RemoteTool.Core.Relay;
@@ -55,9 +56,11 @@ public static class RelayClient
             await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
             {
                 TargetHost = ep.Host,
-                EnabledSslProtocols = SslProtocols.Tls13,
+                EnabledSslProtocols = TlsPolicy.Protocols,
+                CipherSuitesPolicy = TlsPolicy.OfferedSuites(),
                 CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
             }, c.Token).ConfigureAwait(false);
+            TlsPolicy.Require(ssl);
             return ssl;
         }
         catch { tcp.Dispose(); throw; }

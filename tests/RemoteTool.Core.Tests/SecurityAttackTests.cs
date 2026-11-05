@@ -52,7 +52,7 @@ public class SecurityAttackTests
     public async Task TlsDowngradeToOlderVersionsIsRefused()
     {
         await using var rig = Rig.Start();
-        foreach (var old in new[] { SslProtocols.Tls12, SslProtocols.Tls11 })
+        foreach (var old in new[] { SslProtocols.Tls11 })   // TLS 1.2 is allowed (Windows 10) but only with forward-secret AEAD suites: see the next test
         {
             using var tcp = new TcpClient(); await tcp.ConnectAsync(IPAddress.Loopback, rig.Port);
             using var cert = EphemeralCertificate.Create();
@@ -61,6 +61,54 @@ public class SecurityAttackTests
             {
                 TargetHost = "x", EnabledSslProtocols = old, ClientCertificates = new() { cert.Certificate },
             }));
+        }
+        await rig.AssertStillServing();
+    }
+
+    private static CipherSuitesPolicy? Suites(params TlsCipherSuite[] s) => OperatingSystem.IsWindows() ? null : new CipherSuitesPolicy(s);
+
+    [Fact]
+    public async Task Tls12WithAForwardSecretAeadSuiteWorks_ButWeakSuitesAreRefused()
+    {
+        await using var rig = Rig.Start();
+        // allowed: what a Windows 10 viewer negotiates
+        using (var tcp = new TcpClient()) 
+        {
+            await tcp.ConnectAsync(IPAddress.Loopback, rig.Port);
+            using var cert = EphemeralCertificate.Create();
+            await using var ssl = new SslStream(tcp.GetStream(), false, (_, _, _, _) => true);
+            await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+            {
+                TargetHost = "x", EnabledSslProtocols = SslProtocols.Tls12, ClientCertificates = new() { cert.Certificate },
+                CipherSuitesPolicy = Suites(TlsCipherSuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384),
+            });
+            await new FrameWriter(ssl).WriteAsync(MessageType.Hello, new HelloMessage(ProtocolConstants.Version, "w10", new byte[32]).Serialize(), default);
+            using var cts = new CancellationTokenSource(3000);
+            var f = await new FrameReader(ssl, MessageTypes.IsKnownPeer).ReadAsync(cts.Token);
+            Assert.Equal((byte)MessageType.AuthChallenge, f.Type);
+        }
+        if (OperatingSystem.IsWindows()) return;   // SChannel cannot be told to offer a CBC suite
+        // refused: a CBC suite (if this OpenSSL still offers one) must never get past the handshake
+        using (var tcp = new TcpClient())
+        {
+            await tcp.ConnectAsync(IPAddress.Loopback, rig.Port);
+            using var cert = EphemeralCertificate.Create();
+            await using var ssl = new SslStream(tcp.GetStream(), false, (_, _, _, _) => true);
+            var proceeded = false;
+            try
+            {
+                await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+                {
+                    TargetHost = "x", EnabledSslProtocols = SslProtocols.Tls12, ClientCertificates = new() { cert.Certificate },
+                    CipherSuitesPolicy = Suites(TlsCipherSuite.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384),
+                });
+                await new FrameWriter(ssl).WriteAsync(MessageType.Hello, new HelloMessage(ProtocolConstants.Version, "cbc", new byte[32]).Serialize(), default);
+                using var cts = new CancellationTokenSource(2000);
+                var f = await new FrameReader(ssl, MessageTypes.IsKnownPeer).ReadAsync(cts.Token);
+                proceeded = f.Type == (byte)MessageType.AuthChallenge;
+            }
+            catch (Exception) { /* refused at the handshake or dropped right after: both fine */ }
+            Assert.False(proceeded);
         }
         await rig.AssertStillServing();
     }

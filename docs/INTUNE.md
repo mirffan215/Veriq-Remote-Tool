@@ -1,6 +1,6 @@
 # Deploying with Microsoft Intune
 
-Targets Windows 11. Assumes you have a code-signing certificate (BUILD.md → *Code signing*). **Never deploy an unsigned build** — `deploy/intune/install.ps1` refuses to.
+Targets Windows 10 1809+ and Windows 11. Assumes you have a code-signing certificate (BUILD.md → *Code signing*). **Never deploy an unsigned build** — `deploy/intune/install.ps1` refuses to.
 
 ## 1. Build, sign, package
 ```powershell
@@ -23,7 +23,7 @@ The relay **access key** still comes from your secret store (platform script / P
 | Install command | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1` |
 | Uninstall command | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File uninstall.ps1` |
 | Install behaviour | **System** |
-| Requirements | Windows 11 (build ≥ 22000), 64-bit |
+| Requirements | Windows 10 1809+ / Windows 11 (build ≥ 17763), 64-bit |
 | Detection | Custom script → `detect.ps1` (checks path, valid signature, SHA-256) |
 | Assignment | *Required* to the PC groups that need it; keep unattended PCs in a **separate** group/app |
 

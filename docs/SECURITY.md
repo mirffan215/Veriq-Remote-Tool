@@ -12,7 +12,7 @@ A.8.24 cryptography, A.8.26 application security) and NCA ECC (identity/access, 
 
 | Threat | Controls | Tests |
 |---|---|---|
-| **MITM on the network** | Inner TLS 1.3 only (no downgrade, checked post-handshake); mutual certificates; handshake proofs bound to both cert fingerprints | `ActiveManInTheMiddleIsDetected` |
+| **MITM on the network** | Inner TLS 1.3, or TLS 1.2 with forward-secret AEAD suites only (nothing older; checked post-handshake, D-40); mutual certificates; handshake proofs bound to both cert fingerprints | `ActiveManInTheMiddleIsDetected` |
 | **Malicious / compromised relay** | End-to-end inner TLS; relay only splices bytes; channel binding makes a TLS-terminating relay fail authentication; relay sees only metadata (ID, IPs, byte counts); relay logs never contain payloads | `…RelayCarriesOnlyCiphertext`, MITM test |
 | **Brute-force of the password** | 8×31-symbol one-time password; PBKDF2 600k; one attempt per connection; 5 failures per source ⇒ 15-minute block **and** password rotation; relay rate-limits connects (10/min/IP) and failed lookups (5/min/IP) | `WrongPasswordFailsAndLocksOut…`, `SlidingWindowLimits`, `FailedLookupsAreRateLimited…` |
 | **ID enumeration** | 12-digit random codes (10–12 accepted) (never sequential, never derived from host data); one generic `NotFound` for unknown/offline/forbidden/throttled; per-IP limiter even for valid IDs once throttled | `UnknownAndOfflineIdsGetTheSameGenericAnswer` |
@@ -58,7 +58,7 @@ See **docs/SECURITY-TEST-REPORT.md** for the complete attack-test results, the t
 | **Distributed denial of unattended access** | breaker pauses logins (documented trade-off D-29) | automated |
 
 ## Known limitations / residual risks (Phase 1)
-1. **Windows 11 / Server 2022 only** (TLS 1.3; DECISIONS D-02/D-16).
+1. **Windows 10 (1809) / Server 2019 or newer.** TLS 1.3 when both sides have it, otherwise TLS 1.2 restricted to forward-secret AEAD suites (DECISIONS D-40, which supersedes D-02/D-16).
 2. **Password proof is not a PAKE** (D-04): a TLS-terminating malicious relay can attempt an offline guess of one 39.6-bit password through 600k PBKDF2 rounds.
 3. Windows screen capture of the **secure desktop (UAC prompt, lock screen, Ctrl+Alt+Del)** is not possible from a user-session process; the viewer sees a frozen/black screen until Phase 3.
 4. Input to **elevated windows** is blocked by UIPI until Phase 3.
@@ -69,7 +69,7 @@ See **docs/SECURITY-TEST-REPORT.md** for the complete attack-test results, the t
 9. A viewer whose connection drops keeps a 2-minute resume window; anyone who steals the token *and* can complete the TLS handshake with it could resume. The token only ever travels inside the end-to-end channel.
 
 ## Phase 1 security checklist
-- [x] TLS 1.3 only, mutual, ephemeral certs · [x] channel-bound password proof · [x] lockout + rotation · [x] consent before any control
+- [x] TLS 1.3 (1.2 AEAD fallback for Windows 10), mutual, ephemeral certs · [x] channel-bound password proof · [x] lockout + rotation · [x] consent before any control
 - [x] banner + emergency hotkey (code complete, unverified on Windows) · [x] audit log (JSONL, rotation) · [x] frame fuzzing · [x] relay opacity test
 - [x] Clipboard/file controls (Phase 2) · [x] resume tickets · [ ] service/UAC/login screen (Phase 3) · [ ] log hash-chain, session recording opt-in (Phase 3) · [ ] penetration test of the relay before internet exposure
 
@@ -79,7 +79,7 @@ Legend: **T** implemented and covered by automated tests that run on Linux CI ·
 
 | Control | Status |
 |---|---|
-| TLS 1.3 only, mutual, ephemeral certs; channel-bound password proofs; MITM/relay-MITM detection | **T** |
+| TLS 1.3 or 1.2-AEAD, mutual, ephemeral certs; channel-bound password proofs; MITM/relay-MITM detection | **T** |
 | One-time password: single-use, rotation, lockout 5/15 min | **T** |
 | Resume tickets: single-use, 2-minute window, killed by deliberate disconnect | **T** |
 | Frame/parser hardening + fuzzing (network and helper protocol) | **T** |

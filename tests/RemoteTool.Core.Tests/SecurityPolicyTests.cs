@@ -29,7 +29,7 @@ public class SecurityPolicyTests
     [Theory]
     [InlineData(@"\bBinaryFormatter\b|\bNetDataContractSerializer\b|\bSoapFormatter\b|\bLosFormatter\b", "unsafe deserialisers")]
     [InlineData(@"\bMD5\b|\bSHA1\b|\bHMACSHA1\b|\bHMACMD5\b|\bDES(CryptoServiceProvider)?\b|\bTripleDES\b|\bRC2\b|\bRijndaelManaged\b", "broken or legacy primitives")]
-    [InlineData(@"SslProtocols\.(Ssl2|Ssl3|Tls|Tls11|Tls12|Default|None)\b", "anything but TLS 1.3")]
+    [InlineData(@"SslProtocols\.(Ssl2|Ssl3|Tls|Tls11|Default|None)\b", "TLS older than 1.2")]
     [InlineData(@"Assembly\.(Load|LoadFrom|LoadFile)\(|Activator\.CreateInstance\(\s*Type\.GetType", "dynamic code loading")]
     [InlineData(@"ServicePointManager\.ServerCertificateValidationCallback|DangerousAcceptAnyServerCertificateValidator", "global certificate bypass")]
     [InlineData(@"\bEncoding\.\w+\.GetString\([^)]*\)\s*\.\s*Contains\(\s*""password", "ad-hoc password handling")]

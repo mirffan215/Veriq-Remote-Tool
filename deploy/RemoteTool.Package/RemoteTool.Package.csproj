@@ -63,7 +63,7 @@
       <_Readme Include="1. Copy $(PackageExeName) to the PC (any folder, USB stick is fine) and double-click it. No installer, no .NET needed." />
       <_Readme Include="2. Fully portable: create an empty file named portable.flag next to the exe - settings, ID and logs then stay in a 'data' folder beside it." />
       <_Readme Include="3. Verify the download:  certutil -hashfile $(PackageExeName) SHA256   must equal the value in $(PackageExeName).sha256" />
-      <_Readme Include="4. Windows 11 / Server 2022 only (TLS 1.3). Unsigned builds trigger SmartScreen: More info -> Run anyway, or sign the exe first (scripts\sign-app.ps1)." />
+      <_Readme Include="4. Windows 10 (1809) / Server 2019 or newer (TLS 1.3 when available, else TLS 1.2 with forward-secret AEAD suites). Unsigned builds trigger SmartScreen: More info -> Run anyway, or sign the exe first (scripts\sign-app.ps1)." />
       <_Readme Include="5. Relay settings: Allow Access tab -> Settings (see docs\BUILD.md and docs\INTUNE.md for company-wide rollout)." />
     </ItemGroup>
     <WriteLinesToFile File="$(PackageDir)\README.txt" Lines="@(_Readme)" Overwrite="true" />

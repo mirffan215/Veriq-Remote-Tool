@@ -22,7 +22,8 @@ public static class TlsChannel
             {
                 ServerCertificate = cert,
                 ClientCertificateRequired = true,
-                EnabledSslProtocols = SslProtocols.Tls13,
+                EnabledSslProtocols = TlsPolicy.Protocols,
+                CipherSuitesPolicy = TlsPolicy.OfferedSuites(),
                 CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
                 EncryptionPolicy = EncryptionPolicy.RequireEncryption,
                 RemoteCertificateValidationCallback = static (_, c, _, _) => c != null,
@@ -42,7 +43,8 @@ public static class TlsChannel
                 TargetHost = "remotetool.peer",
                 ClientCertificates = new X509CertificateCollection { cert },
                 LocalCertificateSelectionCallback = (_, _, _, _, _) => cert,
-                EnabledSslProtocols = SslProtocols.Tls13,
+                EnabledSslProtocols = TlsPolicy.Protocols,
+                CipherSuitesPolicy = TlsPolicy.OfferedSuites(),
                 CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
                 EncryptionPolicy = EncryptionPolicy.RequireEncryption,
                 RemoteCertificateValidationCallback = static (_, c, _, _) => c != null,
@@ -54,7 +56,7 @@ public static class TlsChannel
 
     private static SecureChannel Wrap(SslStream ssl)
     {
-        if (ssl.SslProtocol != SslProtocols.Tls13) throw new AuthenticationException("TLS 1.3 is required");
+        TlsPolicy.Require(ssl);
         if (ssl.LocalCertificate is null || ssl.RemoteCertificate is null)
             throw new AuthenticationException("mutual certificates are required");
         return new SecureChannel(ssl, EphemeralCertificate.Fingerprint(ssl.LocalCertificate), EphemeralCertificate.Fingerprint(ssl.RemoteCertificate));

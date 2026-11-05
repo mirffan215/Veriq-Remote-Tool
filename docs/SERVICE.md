@@ -1,6 +1,6 @@
 # Unattended access (Windows service)
 
-Optional, **opt-in**, Windows 11 / Server 2022. Lets IT staff reach a PC with a *permanent password* — including at the login screen, on the lock
+Optional, **opt-in**, Windows 10 (1809) / Server 2019 and newer. Lets IT staff reach a PC with a *permanent password* — including at the login screen, on the lock
 screen and across UAC prompts — without anybody clicking Allow. The normal (attended) mode is unchanged and remains the default.
 
 ## Architecture

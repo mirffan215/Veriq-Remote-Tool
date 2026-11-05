@@ -46,11 +46,11 @@ public class InstallerAuthoringTests
     }
 
     [Fact]
-    public void InstallsOnlyOnWindows11_ToTheAdminOnlyProgramFilesFolder()
+    public void InstallsOnWindows10OrNewer_ToTheAdminOnlyProgramFilesFolder()
     {
         var pkg = Wxs().Root!.Element(W + "Package")!;
         var launch = pkg.Element(W + "Launch")!;
-        Assert.Contains("22000", (string)launch.Attribute("Condition")!);               // Windows 11 build number (TLS 1.3)
+        Assert.Contains("17763", (string)launch.Attribute("Condition")!);               // Windows 10 1809 / Server 2019 (TLS 1.2 AEAD fallback)
         Assert.Contains("ProgramFiles64Folder", pkg.Descendants(W + "StandardDirectory").Select(d => (string)d.Attribute("Id")!));
         Assert.DoesNotContain("AppData", File.ReadAllText(Path.Combine(Dir, "Package.wxs")));
         Assert.All(pkg.Descendants(W + "Component"), c => Assert.Equal("always64", (string?)c.Attribute("Bitness")));

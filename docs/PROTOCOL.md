@@ -11,14 +11,14 @@ Keep in sync with `src/RemoteTool.Core/Protocol`. All integers are big-endian.
 ```
 viewer ── TCP ── [Mode A: direct]  ────────────────────────── host
 viewer ── TCP+TLS1.3 ── relay ── TCP+TLS1.3 ── host            [Mode B: outer links, relay-terminated]
-viewer ══ TLS 1.3 (mutual, ephemeral certs) ═══ end-to-end ═══ host     inner channel, same in A and B
+viewer ══ TLS 1.3 or 1.2-AEAD (mutual, ephemeral certs) ═══ end-to-end ═══ host     inner channel, same in A and B
           └─ frames ─ Hello … AuthResult … Consent … ScreenInfo / FrameUpdate / input …
 ```
 
-* **Inner channel** (always): TLS 1.3 only, both sides present a fresh self-signed ECDSA P-256 certificate
+* **Inner channel** (always): TLS 1.3 (TLS 1.2 with ECDHE+AEAD suites as the Windows 10 fallback, see D-40), both sides present a fresh self-signed ECDSA P-256 certificate
   (generated per connection). Certificate chains are *not* trusted; identity comes from §4 which is bound to the
   SHA-256 fingerprints of both certificates. The host is the TLS server, the viewer the TLS client.
-* **Outer relay link** (Mode B only): TLS 1.3 to the relay, validated by pinned SHA-256 fingerprint or a public CA.
+* **Outer relay link** (Mode B only): TLS 1.3 (or 1.2-AEAD) to the relay, validated by pinned SHA-256 fingerprint or a public CA.
   It protects the ID and relay access key. The relay copies the inner channel's bytes and cannot read or alter them undetected.
 
 ## 2. Framing

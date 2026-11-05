@@ -3,7 +3,7 @@
   <!--
     RemoteTool MSI.
       * per-machine, 64-bit, installs to %ProgramFiles%\RemoteTool (admin-writable only: a SYSTEM service may later run from here)
-      * requires Windows 11 / Server 2022 (TLS 1.3)
+      * requires Windows 10 1809 / Server 2019 or newer (TLS 1.3 preferred, TLS 1.2 AEAD fallback)
       * optional first-run defaults for ALL users, set with msiexec properties:  RELAY_ADDRESS  RELAY_FINGERPRINT
         -> machine environment variables REMOTETOOL_RELAY / REMOTETOOL_RELAY_FP (the relay ACCESS KEY is deliberately NOT an MSI property:
            properties end up in logs and the installer cache; deliver the key from your secret store, see docs/INTUNE.md)
@@ -18,7 +18,7 @@
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of RemoteTool is already installed." Schedule="afterInstallExecute" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
-    <Launch Condition="Installed OR (WindowsBuild &gt;= 22000)" Message="RemoteTool requires Windows 11 or Windows Server 2022 (TLS 1.3 is mandatory)." />
+    <Launch Condition="Installed OR (WindowsBuild &gt;= 17763)" Message="RemoteTool requires Windows 10 (version 1809) or newer, or Windows Server 2019 or newer." />
 
     <Property Id="ARPCOMMENTS" Value="Remote support tool - end-to-end encrypted, consent-based" />
     <Property Id="ARPNOMODIFY" Value="1" />

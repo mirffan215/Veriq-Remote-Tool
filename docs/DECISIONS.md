@@ -157,3 +157,11 @@ User feedback: the tool asked for too many settings. Decisions:
   repeated denials lock the source out. Residual risk: it depends on a human comparing the code (as in Signal/ZRTP). A PAKE (SPAKE2+/OPAQUE) remains the recommended future hardening.
 * **Access password** (optional, Settings): lets a viewer who knows it connect with no click (AnyDesk "unattended access"). Stored as derived key + salt (DPAPI), ≥12 chars, global failure breaker and per-source lockout; banner and Disconnect remain; control + clipboard only, never file transfer.
 * The Windows service refuses click-only mode (nobody to click on the login screen): it always needs its permanent password.
+
+## D-40 Windows 10 / Server 2019 support: TLS 1.2 (AEAD, forward-secret) fallback - supersedes D-02 and D-16
+Owner request: the tool must work on Windows 10 and newer without checking builds. SChannel has no TLS 1.3 before Windows 11 / Server 2022, so a TLS-1.3-only rule excluded Windows 10 entirely.
+Decision: all links (viewer-host, client-relay, relay listener) go through `TlsPolicy`: TLS 1.3 preferred; TLS 1.2 accepted **only** with ECDHE + AES-GCM / ChaCha20-Poly1305 (checked after the handshake on every OS,
+and offered exclusively on non-Windows where the OS allows it). TLS 1.1 and older, CBC suites and RSA key exchange are refused (tests: `TlsDowngradeToOlderVersionsIsRefused`, `Tls12WithAForwardSecretAeadSuiteWorks_ButWeakSuitesAreRefused`, `RelayRefusesTlsOlderThan12`).
+Why this is acceptable: peer identity never rests on TLS alone - the password/consent proofs are HMACs bound to both certificate fingerprints, so a MITM or a forced downgrade cannot authenticate; mutual certificates are still required.
+What is lost: a downgrade attacker can push a Windows 11 pair from 1.3 to 1.2 (still forward-secret AEAD). No renegotiation or session tickets are used. A managed TLS stack (BouncyCastle) would give 1.3 everywhere but adds a large unaudited dependency; revisit if required.
+Minimum OS: Windows 10 1809 / Server 2019 (build 17763; MSI launch condition).
