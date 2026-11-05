@@ -80,7 +80,7 @@ public sealed class ViewerSession : IAsyncDisposable
         catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             await transport.DisposeAsync().ConfigureAwait(false);
-            throw new ConnectFailedException(ConnectFailure.Network, "Secure channel could not be established.", e);
+            throw new ConnectFailedException(ConnectFailure.Network, $"Secure channel could not be established ({(e.InnerException ?? e).GetType().Name}: {(e.InnerException ?? e).Message}). Both computers need Windows 11 or Server 2022 (TLS 1.3) and the same RemoteTool version.", e);
         }
 
         var reader = new FrameReader(ch.Stream, MessageTypes.IsKnownPeer, ProtocolConstants.PreAuthMaxFramePayload);
