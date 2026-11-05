@@ -251,6 +251,17 @@ public class ServiceRuntimeTests
     }
 
     [Fact]
+    public async Task TheServiceNeverAcceptsAClickOnlyRequest_NobodyMayBeThereToClick()
+    {
+        await using var rig = await Rig.StartAsync();
+        var c = new TcpClient { NoDelay = true }; await c.ConnectAsync(IPAddress.Loopback, rig.Port);
+        var e = await Assert.ThrowsAsync<ConnectFailedException>(async () =>
+            await ViewerSession.ConnectAsync(c.GetStream(), "stranger", "", new ListAudit(), Permissions.All, default, consentOnly: true));
+        Assert.Equal(ConnectFailure.PasswordRequired, e.Failure);
+        Assert.Equal(0, rig.Launcher.Ui.Asked);
+    }
+
+    [Fact]
     public async Task H264RequestToHelperWithoutEncoderFallsBackCleanly()
     {
         await using var rig = await Rig.StartAsync();

@@ -24,6 +24,25 @@ public static class PasswordHandshake
     public static byte[] HostProof(byte[] key, byte[] nonceViewer, byte[] nonceHost, byte[] fpViewer, byte[] fpHost)
         => Proof(HostLabel, key, nonceViewer, nonceHost, fpViewer, fpHost);
 
+    /// <summary>The viewer commits to its nonce before it sees the host's nonce.</summary>
+    public static byte[] Commit(byte[] nonce) => SHA256.HashData(nonce);
+
+    /// <summary>Public, fixed key for consent-only sessions: the proofs then give integrity/binding but NO authentication (there is no shared secret).</summary>
+    public static readonly byte[] ConsentModeKey = SHA256.HashData(Encoding.ASCII.GetBytes("RemoteTool/4 consent-mode: no shared secret"));
+
+    /// <summary>
+    /// 6-digit security code over BOTH nonces and BOTH certificate fingerprints, shown on both screens ("482 913"). Honest peers compute the same value;
+    /// a man-in-the-middle terminates TLS twice (two different certificate pairs) and cannot make the codes agree because the viewer's nonce was
+    /// committed before the host's nonce was revealed (it would need a 1-in-a-million guess, visible to the users as a mismatch).
+    /// </summary>
+    public static string SecurityCode(byte[] nonceViewer, byte[] nonceHost, byte[] fpViewer, byte[] fpHost)
+    {
+        var data = new ProtoWriter().Fixed(Encoding.ASCII.GetBytes("RemoteTool/4 security-code")).Bytes(nonceViewer).Bytes(nonceHost).Bytes(fpViewer).Bytes(fpHost).ToArray();
+        var h = SHA256.HashData(data);
+        var v = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(h) % 1_000_000;
+        return $"{v / 1000:D3} {v % 1000:D3}";
+    }
+
     public static bool ConstantTimeEquals(byte[] a, byte[] b) => CryptographicOperations.FixedTimeEquals(a, b);
 
     private static byte[] Proof(string label, byte[] key, byte[] nv, byte[] nh, byte[] fpV, byte[] fpH)

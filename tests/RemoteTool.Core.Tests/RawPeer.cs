@@ -39,14 +39,14 @@ public sealed class RawPeer : IAsyncDisposable
     public sealed record Proof(byte[] NonceV, byte[] ViewerProof, AuthChallengeMessage Challenge, AuthResultMessage? Result);
 
     /// <summary>Hello -> challenge -> proof. Pass <paramref name="replayProof"/>/<paramref name="fixedNonce"/> to replay a captured exchange.</summary>
-    public async Task<Proof> AuthAsync(string password, byte[]? fixedNonce = null, byte[]? replayProof = null, string name = "attacker")
+    public async Task<Proof> AuthAsync(string password, byte[]? fixedNonce = null, byte[]? replayProof = null, string name = "attacker", AuthMode mode = AuthMode.OneTimePassword)
     {
         var nonceV = fixedNonce ?? RandomNumberGenerator.GetBytes(32);
-        await W.WriteAsync(MessageType.Hello, new HelloMessage(ProtocolConstants.Version, name, nonceV).Serialize(), default);
+        await W.WriteAsync(MessageType.Hello, new HelloMessage(ProtocolConstants.Version, name, PasswordHandshake.Commit(nonceV), mode).Serialize(), default);
         var challenge = AuthChallengeMessage.Parse((await R.ReadAsync(default)).Payload);
-        var key = PasswordHandshake.DeriveKey(password, challenge.Salt);
+        var key = mode == AuthMode.Consent ? PasswordHandshake.ConsentModeKey : PasswordHandshake.DeriveKey(password, challenge.Salt);
         var proof = replayProof ?? PasswordHandshake.ViewerProof(key, nonceV, challenge.Nonce, LocalFp, RemoteFp);
-        await W.WriteAsync(MessageType.AuthResponse, new AuthResponseMessage(proof).Serialize(), default);
+        await W.WriteAsync(MessageType.AuthResponse, new AuthResponseMessage(proof, nonceV).Serialize(), default);
         var f = await R.ReadAsync(default);
         var result = f.Type == (byte)MessageType.AuthResult ? AuthResultMessage.Parse(f.Payload) : null;
         if (result is { Success: true }) R.MaxPayload = ProtocolConstants.MaxFramePayload;

@@ -38,7 +38,10 @@ public interface IInputInjector : IDisposable
 }
 
 /// <param name="Recording">True when this host will record the session (the consent UI must say so).</param>
-public sealed record ConsentRequestInfo(string ViewerName, string Source, bool ViaRelay, Permissions Requested, Permissions Allowed, bool Recording = false);
+/// <param name="SecurityCode">Both sides show this 6-digit code; if the viewer reports a different one, someone is in the middle: deny.</param>
+/// <param name="ConsentOnly">The viewer used no password: this click is the only authorisation.</param>
+public sealed record ConsentRequestInfo(string ViewerName, string Source, bool ViaRelay, Permissions Requested, Permissions Allowed, bool Recording = false,
+    string? SecurityCode = null, bool ConsentOnly = false);
 public sealed record ConsentDecision(bool Granted, Permissions Permissions);
 
 public interface IConsentProvider
@@ -52,7 +55,9 @@ public sealed record HostPolicy(
     bool ViewOnly = false,
     bool AllowClipboard = true,
     bool AllowFileTransfer = true,
-    IReadOnlyList<string>? IpAllowList = null)
+    IReadOnlyList<string>? IpAllowList = null,
+    /// <summary>Accept connections that only need the user's Accept click (the AnyDesk-style default). False for the unattended service.</summary>
+    bool AllowConsentOnly = true)
 {
     public Permissions Allowed =>
         (ViewOnly ? Permissions.None : Permissions.Control)
@@ -65,6 +70,8 @@ public sealed record SessionInfo(Guid Id, string ViewerName, string Source, Perm
 public enum ConnectFailure
 {
     Network, NotFound, BadPassword, Blocked, Busy, Denied, VersionMismatch, NotAllowed,
+    /// <summary>The other PC only accepts connections with a password (not just a click).</summary>
+    PasswordRequired,
     /// <summary>Host proof did not verify: wrong peer or an active man-in-the-middle.</summary>
     PeerAuthenticationFailed,
     Timeout, Protocol,

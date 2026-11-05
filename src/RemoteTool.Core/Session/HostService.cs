@@ -204,7 +204,7 @@ public sealed partial class HostService : IAsyncDisposable
                 await writer.WriteAsync(MessageType.AuthResult, new AuthResultMessage(true, AuthFailure.None, auth.HostProof).Serialize(), token).ConfigureAwait(false);
                 reader.MaxPayload = ProtocolConstants.MaxFramePayload;
                 if (auth.Mode == AuthMode.OneTimePassword) RotatePassword(); // single-use: the password that was just accepted is dead from now on
-                _lockout.RegisterSuccess(origin.SourceKey);
+                if (auth.Mode != AuthMode.Consent) _lockout.RegisterSuccess(origin.SourceKey);
                 _audit.Write("auth_success", ("source", origin.Display), ("viewer", auth.ViewerName), ("mode", auth.Mode));
                 await RunSessionAsync(ch, reader, writer, origin, auth, token).ConfigureAwait(false);
             }
@@ -223,7 +223,7 @@ public sealed partial class HostService : IAsyncDisposable
         }
     }
 
-    private sealed record AuthOutcome(string ViewerName, byte[] HostProof, ResumeTicket? Resumed, AuthMode Mode);
+    private sealed record AuthOutcome(string ViewerName, byte[] HostProof, ResumeTicket? Resumed, AuthMode Mode, string SecurityCode);
 
     /// <summary>Hello -> challenge -> proof check. Returns null (after replying) on any failure.</summary>
     private async Task<AuthOutcome?> AuthenticateAsync(SecureChannel ch, FrameReader reader, FrameWriter writer, PeerOrigin origin, CancellationToken ct)
@@ -256,8 +256,19 @@ public sealed partial class HostService : IAsyncDisposable
         await writer.WriteAsync(MessageType.AuthChallenge, new AuthChallengeMessage(name, nonceH, salt).Serialize(), hs.Token).ConfigureAwait(false);
 
         var resp = AuthResponseMessage.Parse(await ReadExpected(reader, MessageType.AuthResponse, hs.Token).ConfigureAwait(false));
+        var nonceV = resp.RevealedNonce;
+        // Commit-then-reveal: the viewer's nonce must be the one it committed to BEFORE it saw ours (this is what makes the security code un-grindable).
+        var commitOk = PasswordHandshake.ConstantTimeEquals(PasswordHandshake.Commit(nonceV), hello.NonceCommit);
+        var consentOnly = mode == AuthMode.Consent;
+        if (consentOnly && !Policy.AllowConsentOnly)
+        {
+            _audit.Write("consent_only_refused", ("source", origin.Display));
+            await writer.WriteAsync(MessageType.AuthResult, new AuthResultMessage(false, AuthFailure.PasswordRequired, zero).Serialize(), hs.Token).ConfigureAwait(false);
+            return null;
+        }
         byte[] key;
-        if (permanentOk) key = _permanent!.Key;
+        if (consentOnly) key = PasswordHandshake.ConsentModeKey;           // no secret exists: the user's click is the authorisation
+        else if (permanentOk) key = _permanent!.Key;
         else
         {
             var secret = mode switch
@@ -270,8 +281,8 @@ public sealed partial class HostService : IAsyncDisposable
             key = await Task.Run(() => PasswordHandshake.DeriveKey(secret, salt), hs.Token).ConfigureAwait(false);
         }
         // Fingerprints from the host's perspective: viewer = remote, host = local.
-        var expected = PasswordHandshake.ViewerProof(key, hello.Nonce, nonceH, ch.RemoteFingerprint, ch.LocalFingerprint);
-        if (!PasswordHandshake.ConstantTimeEquals(expected, resp.Proof) || (mode == AuthMode.Resume && ticket is null))
+        var expected = PasswordHandshake.ViewerProof(key, nonceV, nonceH, ch.RemoteFingerprint, ch.LocalFingerprint);
+        if (!commitOk || !PasswordHandshake.ConstantTimeEquals(expected, resp.Proof) || (mode == AuthMode.Resume && ticket is null))
         {
             var blockedNow = _lockout.RegisterFailure(origin.SourceKey);
             _audit.Write("auth_failure", ("source", origin.Display), ("viewer", hello.ViewerName), ("blocked", blockedNow), ("mode", mode));
@@ -292,8 +303,9 @@ public sealed partial class HostService : IAsyncDisposable
             await writer.WriteAsync(MessageType.AuthResult, new AuthResultMessage(false, AuthFailure.BadPassword, zero).Serialize(), hs.Token).ConfigureAwait(false);
             return null;
         }
-        var hostProof = PasswordHandshake.HostProof(key, hello.Nonce, nonceH, ch.RemoteFingerprint, ch.LocalFingerprint);
-        return new AuthOutcome(NameSanitizer.Clean(hello.ViewerName, "viewer"), hostProof, mode == AuthMode.Resume ? ticket : null, mode);
+        var hostProof = PasswordHandshake.HostProof(key, nonceV, nonceH, ch.RemoteFingerprint, ch.LocalFingerprint);
+        var sas = PasswordHandshake.SecurityCode(nonceV, nonceH, ch.RemoteFingerprint, ch.LocalFingerprint);   // viewer = remote, host = local
+        return new AuthOutcome(NameSanitizer.Clean(hello.ViewerName, "viewer"), hostProof, mode == AuthMode.Resume ? ticket : null, mode, sas);
     }
 
     private static async Task<byte[]> ReadExpected(FrameReader r, MessageType t, CancellationToken ct)

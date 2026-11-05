@@ -170,11 +170,11 @@ public class SecurityAttackTests
         // "reflection": use the HOST-role proof formula as the viewer proof
         await using var b = await RawPeer.ConnectAsync(rig.Port);
         var nonceV = RandomNumberGenerator.GetBytes(32);
-        await b.W.WriteAsync(MessageType.Hello, new HelloMessage(ProtocolConstants.Version, "refl", nonceV).Serialize(), default);
+        await b.W.WriteAsync(MessageType.Hello, new HelloMessage(ProtocolConstants.Version, "refl", PasswordHandshake.Commit(nonceV)).Serialize(), default);
         var ch = AuthChallengeMessage.Parse((await b.R.ReadAsync(default)).Payload);
         var key = PasswordHandshake.DeriveKey(pw, ch.Salt);
         var hostRoleProof = PasswordHandshake.HostProof(key, nonceV, ch.Nonce, b.LocalFp, b.RemoteFp);
-        await b.W.WriteAsync(MessageType.AuthResponse, new AuthResponseMessage(hostRoleProof).Serialize(), default);
+        await b.W.WriteAsync(MessageType.AuthResponse, new AuthResponseMessage(hostRoleProof, nonceV).Serialize(), default);
         Assert.False(AuthResultMessage.Parse((await b.R.ReadAsync(default)).Payload).Success);
     }
 

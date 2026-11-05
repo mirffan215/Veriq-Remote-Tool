@@ -51,7 +51,8 @@ public sealed class ServiceRuntime : IAsyncDisposable
     {
         var unattended = new UnattendedPolicy(() => _cfg, _helpers, _audit);
         ISessionRecorderFactory? recorder = _cfg.RecordSessions ? new SessionRecorderFactory(_paths.RecordingDir, _protector, _cfg.RecordingRetentionDays) : null;
-        var policy = new HostPolicy(_cfg.DisplayName, ViewOnly: false, AllowClipboard: false, AllowFileTransfer: false, _cfg.IpAllowList.ToArray());
+        // The service never accepts click-only requests: it must be reachable only with the permanent password (nobody may be there to click).
+        var policy = new HostPolicy(_cfg.DisplayName, ViewOnly: false, AllowClipboard: false, AllowFileTransfer: false, _cfg.IpAllowList.ToArray(), AllowConsentOnly: false);
 
         _host = new HostService(
             producerFactory: () => new PipeFrameProducer(_helpers.GetChannelAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult()),

@@ -26,6 +26,8 @@ public sealed class ViewerSession : IAsyncDisposable
     /// <summary>Single-use ticket for <see cref="ViewerReconnect"/>; changes with every (re)connect. Treat like a password.</summary>
     public string ResumeToken { get; private set; } = "";
     public byte ActiveMonitor { get; private set; }
+    /// <summary>6-digit code both people can compare; a different code on the two screens means someone is in the middle.</summary>
+    public string SecurityCode { get; private set; } = "";
     /// <summary>Codec currently used for the video stream (may fall back to tiles mid-session).</summary>
     public VideoCodecs Codec { get; private set; } = VideoCodecs.TileJpeg;
     /// <summary>True when the host records this session: the UI must show a clear REC indicator.</summary>
@@ -62,7 +64,8 @@ public sealed class ViewerSession : IAsyncDisposable
     /// Runs TLS + password handshake + consent over an already-connected transport (direct TCP or relay splice).
     /// </summary>
     public static async Task<ViewerSession> ConnectAsync(Stream transport, string viewerName, string password, IAuditLog audit,
-        Permissions requested, CancellationToken ct, bool resume = false, bool permanent = false, VideoCodecs codecs = VideoCodecs.TileJpeg)
+        Permissions requested, CancellationToken ct, bool resume = false, bool permanent = false, VideoCodecs codecs = VideoCodecs.TileJpeg,
+        bool consentOnly = false, Action<string>? onSecurityCode = null)
     {
         using var cert = EphemeralCertificate.Create("RemoteTool viewer");
         SecureChannel ch;
@@ -80,18 +83,24 @@ public sealed class ViewerSession : IAsyncDisposable
 
         var reader = new FrameReader(ch.Stream, MessageTypes.IsKnownPeer, ProtocolConstants.PreAuthMaxFramePayload);
         var writer = new FrameWriter(ch.Stream);
+        var securityCode = "";
         try
         {
             using var hs = CancellationTokenSource.CreateLinkedTokenSource(ct);
             hs.CancelAfter(ProtocolConstants.HandshakeTimeout);
 
+            // Commit to our nonce first, reveal it only after the host has shown its own (see PasswordHandshake.SecurityCode).
             var nonceV = RandomNumberGenerator.GetBytes(ProtocolConstants.NonceLength);
-            await writer.WriteAsync(MessageType.Hello, new HelloMessage(ProtocolConstants.Version, NameSanitizer.Clean(viewerName, "viewer"), nonceV, permanent ? AuthMode.Permanent : resume ? AuthMode.Resume : AuthMode.OneTimePassword).Serialize(), hs.Token).ConfigureAwait(false);
+            var mode = consentOnly ? AuthMode.Consent : permanent ? AuthMode.Permanent : resume ? AuthMode.Resume : AuthMode.OneTimePassword;
+            await writer.WriteAsync(MessageType.Hello, new HelloMessage(ProtocolConstants.Version, NameSanitizer.Clean(viewerName, "viewer"), PasswordHandshake.Commit(nonceV), mode).Serialize(), hs.Token).ConfigureAwait(false);
 
             var challenge = AuthChallengeMessage.Parse(await Expect(reader, MessageType.AuthChallenge, hs.Token).ConfigureAwait(false));
-            var key = await Task.Run(() => PasswordHandshake.DeriveKey(password, challenge.Salt), hs.Token).ConfigureAwait(false);
+            var key = consentOnly ? PasswordHandshake.ConsentModeKey : await Task.Run(() => PasswordHandshake.DeriveKey(password, challenge.Salt), hs.Token).ConfigureAwait(false);
             var proof = PasswordHandshake.ViewerProof(key, nonceV, challenge.Nonce, ch.LocalFingerprint, ch.RemoteFingerprint);
-            await writer.WriteAsync(MessageType.AuthResponse, new AuthResponseMessage(proof).Serialize(), hs.Token).ConfigureAwait(false);
+            // Both people can now compare this code (the host's Accept dialog shows the same one).
+            securityCode = PasswordHandshake.SecurityCode(nonceV, challenge.Nonce, ch.LocalFingerprint, ch.RemoteFingerprint);
+            onSecurityCode?.Invoke(securityCode);
+            await writer.WriteAsync(MessageType.AuthResponse, new AuthResponseMessage(proof, nonceV).Serialize(), hs.Token).ConfigureAwait(false);
 
             var result = AuthResultMessage.Parse(await Expect(reader, MessageType.AuthResult, hs.Token).ConfigureAwait(false));
             if (!result.Success) throw Map(result.Failure);
@@ -108,6 +117,7 @@ public sealed class ViewerSession : IAsyncDisposable
             if (!consent.Granted) throw new ConnectFailedException(ConnectFailure.Denied, "The remote user denied the connection.");
 
             var s = new ViewerSession(ch, reader, writer, challenge.HostName, consent.GrantedPermissions, audit);
+            s.SecurityCode = securityCode;
             s.Codec = consent.Codec;
             s.Recording = consent.Recording;
             s.ResumeToken = consent.ResumeToken is { Length: > 0 } t ? System.Text.Encoding.ASCII.GetString(t) : "";
@@ -144,6 +154,7 @@ public sealed class ViewerSession : IAsyncDisposable
         AuthFailure.Blocked => new(ConnectFailure.Blocked, "Too many failed attempts. This device is temporarily blocked."),
         AuthFailure.Busy => new(ConnectFailure.Busy, "The remote PC already has an active session."),
         AuthFailure.VersionMismatch => new(ConnectFailure.VersionMismatch, "Incompatible RemoteTool versions."),
+        AuthFailure.PasswordRequired => new(ConnectFailure.PasswordRequired, "This PC only accepts connections with a password."),
         _ => new(ConnectFailure.NotAllowed, "This connection is not allowed by the remote PC."),
     };
 

@@ -18,6 +18,8 @@ public enum AuthFailure : byte
     Busy = 3,
     VersionMismatch = 4,
     NotAllowed = 5,
+    /// <summary>The host does not accept connections on a click alone (policy, or it is the unattended service): ask for a password.</summary>
+    PasswordRequired = 6,
 }
 
 public enum ByeReason : byte
@@ -47,28 +49,32 @@ public enum AuthMode : byte
     Resume = 1,
     /// <summary>Secret = the permanent (unattended) password; only accepted when the host runs the service with unattended access enabled.</summary>
     Permanent = 2,
+    /// <summary>No shared secret: the host user's Accept click is the authorisation. A 6-digit security code (both ends compute it) lets the two people detect a man-in-the-middle.</summary>
+    Consent = 3,
 }
 
 [Flags]
 public enum VideoCodecs : byte { None = 0, TileJpeg = 1, H264 = 2 }
 
+/// <param name="NonceCommit">SHA-256 of the viewer's 32-byte nonce. The nonce itself is revealed only in <see cref="AuthResponseMessage"/>, AFTER the host has
+/// sent its own nonce: commit-then-reveal is what stops a man-in-the-middle from grinding nonces until the two 6-digit security codes match.</param>
 /// <param name="Mode">Which secret the viewer proves knowledge of.</param>
-public sealed record HelloMessage(ushort Version, string ViewerName, byte[] Nonce, AuthMode Mode = AuthMode.OneTimePassword)
+public sealed record HelloMessage(ushort Version, string ViewerName, byte[] NonceCommit, AuthMode Mode = AuthMode.OneTimePassword)
 {
     public bool Resume => Mode == AuthMode.Resume;
 
-    public byte[] Serialize() => new ProtoWriter().U16(Version).Str(ViewerName).Fixed(Nonce).U8((byte)Mode).ToArray();
+    public byte[] Serialize() => new ProtoWriter().U16(Version).Str(ViewerName).Fixed(NonceCommit).U8((byte)Mode).ToArray();
 
     public static HelloMessage Parse(byte[] p)
     {
         var r = new ProtoReader(p);
         var ver = r.U16();
         var name = r.Str(ProtocolConstants.MaxNameChars);
-        var nonce = r.Fixed(ProtocolConstants.NonceLength);
+        var commit = r.Fixed(ProtocolConstants.NonceLength);
         var mode = r.U8();
-        if (mode > (byte)AuthMode.Permanent) throw new ProtocolException("invalid auth mode");
+        if (mode > (byte)AuthMode.Consent) throw new ProtocolException("invalid auth mode");
         r.EnsureEnd();
-        return new HelloMessage(ver, name, nonce, (AuthMode)mode);
+        return new HelloMessage(ver, name, commit, (AuthMode)mode);
     }
 }
 
@@ -85,14 +91,17 @@ public sealed record AuthChallengeMessage(string HostName, byte[] Nonce, byte[] 
     }
 }
 
-public sealed record AuthResponseMessage(byte[] Proof)
+public sealed record AuthResponseMessage(byte[] Proof, byte[]? Nonce = null)
 {
-    public byte[] Serialize() => new ProtoWriter().Fixed(Proof).ToArray();
+    /// <summary>The viewer's revealed nonce (must hash to the commitment in Hello).</summary>
+    public byte[] RevealedNonce => Nonce ?? new byte[ProtocolConstants.NonceLength];
+
+    public byte[] Serialize() => new ProtoWriter().Fixed(Proof).Fixed(RevealedNonce).ToArray();
 
     public static AuthResponseMessage Parse(byte[] p)
     {
         var r = new ProtoReader(p);
-        var m = new AuthResponseMessage(r.Fixed(ProtocolConstants.ProofLength));
+        var m = new AuthResponseMessage(r.Fixed(ProtocolConstants.ProofLength), r.Fixed(ProtocolConstants.NonceLength));
         r.EnsureEnd();
         return m;
     }
@@ -107,7 +116,7 @@ public sealed record AuthResultMessage(bool Success, AuthFailure Failure, byte[]
         var r = new ProtoReader(p);
         var ok = r.Bool();
         var f = r.U8();
-        if (f > (byte)AuthFailure.NotAllowed) throw new ProtocolException("invalid auth failure code");
+        if (f > (byte)AuthFailure.PasswordRequired) throw new ProtocolException("invalid auth failure code");
         var m = new AuthResultMessage(ok, (AuthFailure)f, r.Fixed(ProtocolConstants.ProofLength));
         r.EnsureEnd();
         return m;

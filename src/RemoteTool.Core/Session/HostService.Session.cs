@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using RemoteTool.Core.Protocol;
 using RemoteTool.Core.Recording;
+using RemoteTool.Core.Security;
 
 namespace RemoteTool.Core.Session;
 
@@ -40,7 +41,8 @@ public sealed partial class HostService
         {
             using var consentCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             consentCts.CancelAfter(ProtocolConstants.ConsentTimeout);
-            var ask = new ConsentRequestInfo(viewerName, origin.Display, origin.ViaRelay, requested, allowed, Recording: _recorderFactory is not null);
+            var ask = new ConsentRequestInfo(viewerName, origin.Display, origin.ViaRelay, requested, allowed, Recording: _recorderFactory is not null,
+                SecurityCode: auth.SecurityCode, ConsentOnly: auth.Mode == AuthMode.Consent);
             try
             {
                 decision = unattendedSession
@@ -55,10 +57,14 @@ public sealed partial class HostService
         if (!decision.Granted)
         {
             _audit.Write("consent_denied", ("source", origin.Display), ("viewer", viewerName), ("unattended", unattendedSession));
+            // A click-only request has no password to guess, so repeated refusals are the abuse signal: 5 denials/timeouts block the source for 15 minutes.
+            if (auth.Mode == AuthMode.Consent && _lockout.RegisterFailure(origin.SourceKey))
+                _audit.Write("source_blocked", ("source", origin.Display), ("minutes", (int)AuthLockout.BlockDuration.TotalMinutes), ("reason", "repeated-denied-requests"));
             await writer.WriteAsync(MessageType.ConsentResult, new ConsentResultMessage(false, Permissions.None, ByeReason.Denied).Serialize(), ct).ConfigureAwait(false);
             return;
         }
 
+        if (auth.Mode == AuthMode.Consent) _lockout.RegisterSuccess(origin.SourceKey);   // accepted: the requester is no longer a nuisance
         using var producer = _producerFactory();
         using var injector = _injectorFactory();
         var codec = (req.Codecs & VideoCodecs.H264) != 0 && producer is IH264Source { H264Available: true } ? VideoCodecs.H264 : VideoCodecs.TileJpeg;
