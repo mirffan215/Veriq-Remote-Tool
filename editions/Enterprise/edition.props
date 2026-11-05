@@ -1,0 +1,15 @@
+<Project>
+  <!-- ENTERPRISE edition: the customisable one. Change anything here or in Customization\ without touching Production or UAT. -->
+  <PropertyGroup>
+    <EditionDisplayName>Veriq Remote Tool Enterprise</EditionDisplayName>
+    <EditionDataFolder>VeriqRemoteTool-Enterprise</EditionDataFolder>
+    <EditionBanner>Enterprise</EditionBanner>
+    <EditionIcon>$(MSBuildThisFileDirectory)RemoteTool.ico</EditionIcon>
+    <EditionExeName>VeriqRemoteTool-Enterprise.exe</EditionExeName>
+    <Product>$(EditionDisplayName)</Product>
+    <!-- Built-in relay for this edition. Real values come from environment variables / CI secrets, never from the repository. -->
+    <DefaultRelayAddress Condition="'$(DefaultRelayAddress)' == ''">$(RT_ENTERPRISE_RELAY)</DefaultRelayAddress>
+    <DefaultRelayFingerprint Condition="'$(DefaultRelayFingerprint)' == ''">$(RT_ENTERPRISE_RELAY_FP)</DefaultRelayFingerprint>
+    <DefaultRelayKey Condition="'$(DefaultRelayKey)' == ''">$(RT_ENTERPRISE_RELAY_KEY)</DefaultRelayKey>
+  </PropertyGroup>
+</Project>

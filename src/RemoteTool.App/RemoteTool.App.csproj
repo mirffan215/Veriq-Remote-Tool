@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Editions: `-p:Edition=UAT` (see editions\README.md) imports editions\UAT\edition.props: name, data folder, icon, relay defaults, extra code. No Edition = the plain default. -->
+  <PropertyGroup>
+    <EditionDir Condition="'$(Edition)' != ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\editions\$(Edition)\'))</EditionDir>
+  </PropertyGroup>
+  <Import Project="$(EditionDir)edition.props" Condition="'$(EditionDir)' != '' And Exists('$(EditionDir)edition.props')" />
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
@@ -7,11 +12,12 @@
     <AssemblyName>RemoteTool</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SatelliteResourceLanguages>en;ar</SatelliteResourceLanguages>
-    <ApplicationIcon>Assets\RemoteTool.ico</ApplicationIcon>
+    <ApplicationIcon Condition="'$(EditionIcon)' == ''">Assets\RemoteTool.ico</ApplicationIcon>
+    <ApplicationIcon Condition="'$(EditionIcon)' != ''">$(EditionIcon)</ApplicationIcon>
     <StartupObject>RemoteTool.App.Program</StartupObject>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <Product>RemoteTool</Product>
+    <Product Condition="'$(Product)' == ''">RemoteTool</Product>
     <Company>In-house IT</Company>
   </PropertyGroup>
   <!--
@@ -39,10 +45,27 @@
     </ItemGroup>
   </Target>
 
+  <Target Name="GenerateEmbeddedEdition" BeforeTargets="AssignTargetPaths" Condition="'$(Edition)' != ''">
+    <PropertyGroup>
+      <_EditionFile>$(IntermediateOutputPath)edition.json</_EditionFile>
+      <_EdId>$(Edition.Replace('\', '\\').Replace('"', '\"'))</_EdId>
+      <_EdName>$(EditionDisplayName.Replace('\', '\\').Replace('"', '\"').Replace(';', '%3B'))</_EdName>
+      <_EdFolder>$(EditionDataFolder.Replace('\', '\\').Replace('"', '\"'))</_EdFolder>
+      <_EdBanner>$(EditionBanner.Replace('\', '\\').Replace('"', '\"').Replace(';', '%3B'))</_EdBanner>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_EditionFile)" Overwrite="true" Lines="{&quot;id&quot;:&quot;$(_EdId)&quot;,&quot;displayName&quot;:&quot;$(_EdName)&quot;,&quot;dataFolder&quot;:&quot;$(_EdFolder)&quot;,&quot;banner&quot;:&quot;$(_EdBanner)&quot;}" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(_EditionFile)" LogicalName="RemoteTool.edition.json" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <!-- The WPF SDK omits System.IO from implicit usings (Path clashes with System.Windows.Shapes.Path); this project never imports Shapes. -->
     <Using Include="System.IO" />
-    <Resource Include="Assets\RemoteTool.ico" />
+    <Resource Condition="'$(EditionIcon)' == ''" Include="Assets\RemoteTool.ico" />
+    <Resource Condition="'$(EditionIcon)' != ''" Include="$(EditionIcon)" Link="Assets\RemoteTool.ico" />   <!-- windows load /Assets/RemoteTool.ico: an edition swaps the file behind that name -->
+    <!-- Code that exists only in one edition: put .cs files in editions\<Edition>\Customization\ (hook: EditionCustomization.OnStartup) -->
+    <Compile Condition="'$(EditionDir)' != ''" Include="$(EditionDir)Customization\**\*.cs" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" />
     <ProjectReference Include="../RemoteTool.Core/RemoteTool.Core.csproj" />
     <ProjectReference Include="../RemoteTool.Capture/RemoteTool.Capture.csproj" />

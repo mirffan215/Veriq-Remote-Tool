@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Production edition package. All logic is in ..\Edition.Package.targets; this edition's identity is in edition.props next to this file. -->
+  <PropertyGroup>
+    <Edition>Production</Edition>
+  </PropertyGroup>
+  <Import Project="..\Edition.Package.targets" />
+</Project>

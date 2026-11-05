@@ -4,6 +4,7 @@ using RemoteTool.Core.Security;
 
 namespace RemoteTool.Core.Tests;
 
+[Collection("EditionState")]
 public class SecurityTests
 {
     private sealed class FakeTime : TimeProvider

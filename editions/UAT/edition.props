@@ -1,0 +1,14 @@
+<Project>
+  <!-- UAT edition: for acceptance testing. Own data folder and an amber [UAT] icon/title so it can never be mistaken for Production, and it can run beside it. -->
+  <PropertyGroup>
+    <EditionDisplayName>Veriq Remote Tool</EditionDisplayName>
+    <EditionDataFolder>VeriqRemoteTool-UAT</EditionDataFolder>
+    <EditionBanner>UAT</EditionBanner>
+    <EditionIcon>$(MSBuildThisFileDirectory)RemoteTool.ico</EditionIcon>
+    <EditionExeName>ToolVeriq-UAT.exe</EditionExeName>
+    <Product>$(EditionDisplayName) UAT</Product>
+    <DefaultRelayAddress Condition="'$(DefaultRelayAddress)' == ''">$(RT_UAT_RELAY)</DefaultRelayAddress>
+    <DefaultRelayFingerprint Condition="'$(DefaultRelayFingerprint)' == ''">$(RT_UAT_RELAY_FP)</DefaultRelayFingerprint>
+    <DefaultRelayKey Condition="'$(DefaultRelayKey)' == ''">$(RT_UAT_RELAY_KEY)</DefaultRelayKey>
+  </PropertyGroup>
+</Project>
