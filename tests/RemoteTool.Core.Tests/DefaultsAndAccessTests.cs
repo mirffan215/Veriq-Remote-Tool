@@ -101,4 +101,25 @@ public class DefaultsAndAccessTests
         Assert.Equal(ConnectFailure.BadPassword, e.Failure);
         Assert.Equal(0, rig.Consent.Calls);
     }
+
+    [Fact]
+    public void LocalNetworkWorksOutOfTheBox_AndOldSettingsFilesAreUpgradedOnce()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "rt-set-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var fresh = new SettingsStore(Path.Combine(dir, "new.json")).Load();
+            Assert.True(fresh.DirectListenerEnabled && fresh.LanVisible && fresh.LanFirst);
+
+            var old = Path.Combine(dir, "old.json");   // a file from before the upgrade: everything off, no version
+            File.WriteAllText(old, "{\"DirectListenerEnabled\":false,\"LanVisible\":false,\"LanFirst\":false}");
+            var s1 = new SettingsStore(old);
+            var up = s1.Load();
+            Assert.True(up.DirectListenerEnabled && up.LanVisible && up.SettingsVersion == SettingsStore.CurrentVersion);
+            up.LanVisible = false; s1.Save();                              // the owner switches it off afterwards...
+            Assert.False(new SettingsStore(old).Load().LanVisible);        // ...and the upgrade must not switch it back on
+        }
+        finally { Directory.Delete(dir, true); }
+    }
 }

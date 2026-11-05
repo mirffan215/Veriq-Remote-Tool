@@ -124,7 +124,7 @@
  <data name="Lan_Searching" xml:space="preserve"><value>جارٍ البحث…</value></data>
  <data name="Lan_None" xml:space="preserve"><value>لم يتم العثور على أجهزة مرئية.</value></data>
  <data name="Lan_Item" xml:space="preserve"><value>{0}  -  {1}  ({2})</value></data>
- <data name="Err_NoRelayNoLan" xml:space="preserve"><value>لم يُعثر على هذا الرمز في الشبكة المحلية، ولا يوجد خادم مرحّل مُعدّ للاتصال عبر الإنترنت.</value></data>
+ <data name="Err_NoRelayNoLan" xml:space="preserve"><value>لم يُعثر على هذا العنوان في هذه الشبكة. للوصول إلى جهاز في شبكة أخرى تحتاج هذه النسخة إلى خادم مرحّل (الإعدادات، متقدم) - اسأل مسؤول النظام. وتأكد أيضًا من تشغيل RemoteTool على الجهاز الآخر.</value></data>
  <data name="Svc_Lan" xml:space="preserve"><value>وضع الشبكة المحلية: السماح باتصالات الشبكة المحلية والاكتشاف (يفتح جدار الحماية للشبكة الفرعية المحلية في الشبكات الخاصة/النطاق فقط)</value></data>
  <data name="Main_YourAddress" xml:space="preserve"><value>عنوانك</value></data>
  <data name="Main_RemoteAddress" xml:space="preserve"><value>العنوان البعيد</value></data>

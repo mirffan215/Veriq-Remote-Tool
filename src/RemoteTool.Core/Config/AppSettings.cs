@@ -24,12 +24,15 @@ public sealed class AppSettings
     public string RelayAddress { get; set; } = "";
     public string RelayFingerprint { get; set; } = "";
     public string RelayAccessKeyProtected { get; set; } = "";
-    public bool DirectListenerEnabled { get; set; }
+    /// <summary>Settings schema version: 0 = file written before version 1 of the "works on the local network out of the box" defaults.</summary>
+    public int SettingsVersion { get; set; }
+    /// <summary>On by default so two PCs on the same network find each other with no setup; every connection still needs Accept (or the access password).</summary>
+    public bool DirectListenerEnabled { get; set; } = true;
     public int DirectPort { get; set; } = ConnectTarget.DefaultDirectPort;
-    /// <summary>Answer LAN discovery probes (needs the direct listener). Off by default: a PC is invisible unless its owner says otherwise.</summary>
-    public bool LanVisible { get; set; }
+    /// <summary>Answer LAN discovery probes (needs the direct listener). Switch off in Settings to hide this PC on the local network.</summary>
+    public bool LanVisible { get; set; } = true;
     /// <summary>When connecting by code, look on the local network before using the relay.</summary>
-    public bool LanFirst { get; set; }
+    public bool LanFirst { get; set; } = true;
     public List<string> IpAllowList { get; set; } = new();
     public bool ViewOnly { get; set; }
     public bool AllowClipboard { get; set; } = true;
@@ -60,6 +63,7 @@ public sealed class SettingsStore
 
     public SettingsStore(string file) { _file = file; }
 
+    public const int CurrentVersion = 1;
     public AppSettings Current { get; private set; } = new();
 
     public AppSettings Load()
@@ -75,7 +79,13 @@ public sealed class SettingsStore
                     File.Move(_file, _file + $".corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}", true);
                 }
             }
-            s ??= new AppSettings();
+            s ??= new AppSettings { SettingsVersion = CurrentVersion };
+            if (s.SettingsVersion < CurrentVersion)
+            {
+                // one-time upgrade of files created before local-network access worked out of the box
+                s.DirectListenerEnabled = true; s.LanVisible = true; s.LanFirst = true;
+                s.SettingsVersion = CurrentVersion;
+            }
             if (!ConnectionId.IsValid(s.Id)) s.Id = ConnectionId.Generate();
             Current = s;
             SaveLocked();

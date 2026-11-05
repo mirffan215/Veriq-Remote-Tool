@@ -124,7 +124,7 @@ It will be saved in the "RemoteTool Received" folder. Only accept files you expe
  <data name="Lan_Searching" xml:space="preserve"><value>Searching…</value></data>
  <data name="Lan_None" xml:space="preserve"><value>No visible PCs found.</value></data>
  <data name="Lan_Item" xml:space="preserve"><value>{0}  -  {1}  ({2})</value></data>
- <data name="Err_NoRelayNoLan" xml:space="preserve"><value>That code was not found on the local network, and no relay server is configured for internet connections.</value></data>
+ <data name="Err_NoRelayNoLan" xml:space="preserve"><value>That address was not found on this network. To reach a computer on another network, this copy of RemoteTool needs a relay server (Settings, Advanced) - ask your administrator. Also check that RemoteTool is running on the other computer.</value></data>
  <data name="Svc_Lan" xml:space="preserve"><value>Local network mode: allow LAN connections and discovery (opens the firewall for the local subnet on Private/Domain networks only)</value></data>
  <data name="Main_YourAddress" xml:space="preserve"><value>Your Address</value></data>
  <data name="Main_RemoteAddress" xml:space="preserve"><value>Remote Address</value></data>

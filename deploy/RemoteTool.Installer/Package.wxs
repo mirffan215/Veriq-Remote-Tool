@@ -13,6 +13,8 @@
   -->
   <Package Name="RemoteTool" Manufacturer="In-house IT" Version="$(ProductVersion)"
            UpgradeCode="6B1D1B52-8C3B-4F0A-9D61-3C7A5E0A1F24" Scope="perMachine" Compressed="yes" InstallerVersion="500">
+    <Icon Id="AppIcon" SourceFile="$(PackageIconFile)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of RemoteTool is already installed." Schedule="afterInstallExecute" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />

@@ -18,7 +18,7 @@
     <OutputName>RemoteTool-$(Version)-x64</OutputName>
     <OutputPath>$(RepoRoot)artifacts\installer\</OutputPath>
     <!-- Windows Installer ProductVersion is numeric: major.minor.build[.revision] -->
-    <DefineConstants>$(DefineConstants);ProductVersion=$(Version);PackageDir=$(PackageDir)</DefineConstants>
+    <DefineConstants>$(DefineConstants);ProductVersion=$(Version);PackageDir=$(PackageDir);PackageIconFile=$(RepoRoot)src\RemoteTool.App\Assets\RemoteTool.ico</DefineConstants>
     <SuppressValidation Condition="!$([MSBuild]::IsOSPlatform('Windows'))">true</SuppressValidation>
   </PropertyGroup>
 

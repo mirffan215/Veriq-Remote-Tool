@@ -7,6 +7,7 @@
     <AssemblyName>RemoteTool</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SatelliteResourceLanguages>en;ar</SatelliteResourceLanguages>
+    <ApplicationIcon>Assets\RemoteTool.ico</ApplicationIcon>
     <StartupObject>RemoteTool.App.Program</StartupObject>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
@@ -41,6 +42,7 @@
   <ItemGroup>
     <!-- The WPF SDK omits System.IO from implicit usings (Path clashes with System.Windows.Shapes.Path); this project never imports Shapes. -->
     <Using Include="System.IO" />
+    <Resource Include="Assets\RemoteTool.ico" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" />
     <ProjectReference Include="../RemoteTool.Core/RemoteTool.Core.csproj" />
     <ProjectReference Include="../RemoteTool.Capture/RemoteTool.Capture.csproj" />
