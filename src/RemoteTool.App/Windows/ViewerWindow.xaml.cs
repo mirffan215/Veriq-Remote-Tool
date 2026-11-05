@@ -72,9 +72,7 @@ public partial class ViewerWindow : Window
         {
             foreach (var r in f.Rects)
             {
-                var px = JpegCodec.Decode(r.Jpeg, out var w, out var h);
-                if (w != r.Width || h != r.Height) throw new InvalidDataException("tile size mismatch");
-                decoded.Add((r, px));
+                decoded.Add((r, JpegCodec.DecodeExpecting(r.Jpeg, r.Width, r.Height)));   // header checked before any allocation
             }
         }
         catch (InvalidDataException)

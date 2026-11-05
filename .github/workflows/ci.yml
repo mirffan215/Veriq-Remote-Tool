@@ -10,7 +10,14 @@ jobs:
       - run: dotnet test tests/RemoteTool.Core.Tests -c Release
       - run: dotnet test tests/RemoteTool.Relay.Tests -c Release
       - run: dotnet test tests/RemoteTool.Capture.Tests -c Release
-      - run: dotnet list RemoteTool.sln package --vulnerable --include-transitive
+      - name: Vulnerable packages (per project; a scan that cannot run fails the job)
+        run: |
+          set -e
+          for p in $(find src tests tools -name '*.csproj' ! -path '*RemoteTool.App*'); do
+            out=$(dotnet list "$p" package --vulnerable --include-transitive 2>&1) || { echo "$out"; exit 1; }
+            echo "$out" | grep -q "has the following vulnerable packages" && { echo "$out"; exit 1; }
+            echo "$p: clean"
+          done
       - name: Tile codec benchmark (Linux numbers)
         run: dotnet run -c Release --project tools/RemoteTool.Bench | tee bench-linux.md
       - uses: actions/upload-artifact@v4

@@ -135,3 +135,16 @@ Changes: encode JPEG rects in parallel straight from the capture buffer (no copy
 Bandwidth for scrolling is ≈43 Mbit/s at 720p/15 fps with tiles — this is the case H.264 is meant to fix.
 
 **D-35 Windows 11 only (owner decision) and one exe.** Service, helper, setup, CLI tools and UI are modes of the single portable exe; the service copy is installed to Program Files. Closing the main window still exits the user-mode app (no tray yet).
+
+## Requirements pass (internet code, LAN mode, security testing)
+
+**D-36 Connection code = 12 digits (10–12 accepted).** The brief asked for 10–12 digits. New codes are 12 digits (≈9·10¹¹ values, uniform, no leading zero); 10–11 digit codes are still accepted. Older 9-digit IDs in existing settings are invalid now and are replaced automatically on start.
+Combined with the relay's lookup limits (10 connects/min and 5 failed lookups/min per IP, identical "not found" answer), guessing a live code is impractical.
+
+**D-37 LAN mode.** Direct connections already existed (IP:port). Added: (a) **discovery** — a 128-byte UDP probe to port 21119, answered only by PCs whose owner enabled *Visible on the local network*; reply ≤ probe size (no amplification), 5 replies/10 s/source;
+(b) **connect by code on the LAN** — optional "look on the local network first", and automatic when no relay is configured; (c) the service's *Local network mode* also opens the firewall, **only** for this program, Private/Domain profiles and the local subnet.
+Discovery output is an unauthenticated hint; authentication and consent are unchanged (tested). Off by default everywhere.
+
+**D-38 Why LAN-first is opt-in.** With the current non-PAKE proof (D-04), a spoofed LAN answer can lure a viewer into sending one proof to an attacker. Doing that by default would be a downgrade compared with the relay path, so the user chooses it, and the report lists a PAKE as the top next hardening step.
+
+**D-39 Findings from the security pass** (SECURITY-TEST-REPORT.md): per-source pre-auth limits (F1), geometry/JPEG-header caps (F2), vulnerability scan that cannot silently pass (F3).

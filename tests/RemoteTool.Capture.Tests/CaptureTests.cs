@@ -100,6 +100,52 @@ public class EncoderTests
     }
 }
 
+public class HostileImageTests
+{
+    private static byte[] TinyJpeg(int w = 16, int h = 16)
+    {
+        var px = new byte[w * h * 4]; for (var i = 3; i < px.Length; i += 4) px[i] = 255;
+        return JpegCodec.Encode(px, w * 4, new PixelRect(0, 0, w, h), 80);
+    }
+
+    [Fact]
+    public void JpegWhoseHeaderClaimsHugeDimensionsIsRejectedBeforeAnyAllocation()
+    {
+        var jpeg = TinyJpeg();
+        var sof = Enumerable.Range(0, jpeg.Length - 9).First(i => jpeg[i] == 0xFF && jpeg[i + 1] == 0xC0);   // SOF0: FF C0 len(2) precision(1) height(2) width(2)
+        jpeg[sof + 5] = 0xFD; jpeg[sof + 6] = 0xE8;     // height = 65000
+        jpeg[sof + 7] = 0xFD; jpeg[sof + 8] = 0xE8;     // width  = 65000
+        var before = GC.GetTotalAllocatedBytes(true);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.DecodeExpecting(jpeg, 16, 16));
+        Assert.True(GC.GetTotalAllocatedBytes(true) - before < 64 * 1024 * 1024, "must not allocate for a lying header");
+    }
+
+    [Fact]
+    public void ValidTileDecodesAndMismatchedSizeIsRefused()
+    {
+        var jpeg = TinyJpeg(32, 16);
+        Assert.Equal(32 * 16 * 4, JpegCodec.DecodeExpecting(jpeg, 32, 16).Length);
+        Assert.Throws<InvalidDataException>(() => JpegCodec.DecodeExpecting(jpeg, 16, 16));
+        Assert.Throws<InvalidDataException>(() => JpegCodec.DecodeExpecting(new byte[] { 1, 2, 3 }, 8, 8));
+        Assert.Throws<InvalidDataException>(() => JpegCodec.DecodeExpecting(jpeg, 70000, 70000));
+    }
+
+    [Fact]
+    public void TruncatedAndRandomJpegDataNeverCrashesTheDecoder()
+    {
+        var good = TinyJpeg(48, 48);
+        var rng = new Random(3);
+        for (var i = 0; i < 300; i++)
+        {
+            var d = (byte[])good.Clone();
+            var cut = rng.Next(2, d.Length);
+            d = d[..cut];
+            if (rng.Next(2) == 0) d[rng.Next(d.Length)] ^= (byte)rng.Next(1, 255);
+            try { JpegCodec.DecodeExpecting(d, 48, 48); } catch (InvalidDataException) { }
+        }
+    }
+}
+
 public class CoordinateMapperTests
 {
     [Fact]

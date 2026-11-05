@@ -112,3 +112,9 @@ xunit.runner.visualstudio 2.8.2, SkiaSharp.NativeAssets.Linux.NoDependencies 2.8
 22. **H.264:** on both PCs leave *Use H.264* on, scroll a long document on the host; the viewer's status bar shows “· H.264” and KB/s is far lower than with the setting off on either side. Disable the Media Feature Pack on one PC or untick the setting → session still works with tiles.
 23. **Unattended / service:** run `scripts\validate-windows.ps1`, then SERVICE.md “Validation checklist” items 2–10 from the second PC.
 24. **Allow-listing:** deploy the signed package through Intune to a pilot group (INTUNE.md); confirm no Defender/SmartScreen block and the detection rule turns green.
+
+### LAN and security checks (two PCs on the same network)
+25. **LAN discovery:** PC A: tick *Enable direct connections* and *Visible on the local network*, Save, allow the firewall prompt for **Private** networks only. PC B: Connect tab → *Find PCs on this network* → A appears with its name and 12-digit code. Untick *Visible* on A → B no longer finds it.
+26. **Connect by code on the LAN with no relay configured:** clear the relay address on B, enter A's code + password → connects directly. With a relay configured, tick *look on the local network first* and compare.
+27. **Public Wi-Fi:** set the network profile to Public → A must NOT be reachable (firewall) — verify from B.
+28. **Run the security tests:** `dotnet test` for Core/Relay/Capture; `./scripts/check-vulnerabilities.ps1`; `openssl s_client -tls1_2 -connect <relay>:8443` must fail. Read `docs/SECURITY-TEST-REPORT.md` → *Residual risks* before go-live.

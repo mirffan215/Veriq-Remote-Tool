@@ -9,7 +9,7 @@ namespace RemoteTool.Relay;
 
 public static class RelayHost
 {
-    public static WebApplication Build(string[] args, Action<RelayOptions>? tweak = null, ISpliceObserver? observer = null)
+    public static WebApplication Build(string[] args, Action<RelayOptions>? tweak = null, ISpliceObserver? observer = null, ILoggerProvider? extraLogger = null)
     {
         var builder = WebApplication.CreateSlimBuilder(args);
         builder.Configuration.AddJsonFile("appsettings.json", optional: true).AddEnvironmentVariables().AddCommandLine(args);
@@ -20,6 +20,7 @@ public static class RelayHost
         builder.Services.AddSingleton(sp => new RelayEngine(options, sp.GetRequiredService<ILoggerFactory>().CreateLogger("Relay"), observer: observer));
         builder.Services.AddSingleton<RelayConnectionHandler>();
         builder.Logging.AddSimpleConsole(o => { o.TimestampFormat = "yyyy-MM-ddTHH:mm:ssZ "; o.UseUtcTimestamp = true; });
+        if (extraLogger is not null) builder.Logging.AddProvider(extraLogger);   // tests: prove the relay never logs secrets
         builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(20));
 
         var cert = LoadCertificate(options);

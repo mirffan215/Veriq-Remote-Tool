@@ -19,6 +19,22 @@ public sealed class CapturingObserver : ISpliceObserver
     public byte[] Snapshot() { lock (_g) return _bytes.ToArray(); }
 }
 
+public sealed class CapturingLogger : ILoggerProvider
+{
+    private readonly List<string> _lines = new();
+    public string All { get { lock (_lines) return string.Join("\n", _lines); } }
+    public ILogger CreateLogger(string categoryName) => new L(this);
+    public void Dispose() { }
+    private sealed class L : ILogger
+    {
+        private readonly CapturingLogger _o; public L(CapturingLogger o) { _o = o; }
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        { lock (_o._lines) _o._lines.Add(formatter(state, exception) + (exception is null ? "" : " " + exception)); }
+    }
+}
+
 public sealed class FixedId : IIdProvider
 {
     public string Id { get; private set; }
@@ -37,6 +53,8 @@ public sealed class RelayRig : IAsyncDisposable
     public RelayEngine Engine => _app.Services.GetRequiredService<RelayEngine>();
     public string Fingerprint { get; }
 
+    public CapturingLogger Logs { get; } = new();
+
     private RelayRig(Action<RelayOptions>? tweak)
     {
         var l = new TcpListener(IPAddress.Loopback, 0);
@@ -48,7 +66,7 @@ public sealed class RelayRig : IAsyncDisposable
             o.Port = Port; o.HealthPort = 0; o.AccessKey = Key; o.DataDirectory = _dir;
             o.PendingTimeoutSeconds = 5; o.PingIntervalSeconds = 2; o.ConnectsPerMinutePerIp = 1000; o.FailedLookupsPerMinutePerIp = 1000;
             tweak?.Invoke(o);
-        }, Observer);
+        }, Observer, Logs);
         _app.Logger.LogInformation("test relay");
         Fingerprint = Convert.ToHexString(SHA256.HashData(new X509Certificate2(Path.Combine(_dir, "relay-selfsigned.pfx")).GetRawCertData()));
     }

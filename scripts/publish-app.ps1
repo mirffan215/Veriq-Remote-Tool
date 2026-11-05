@@ -14,10 +14,7 @@ $ErrorActionPreference = "Stop"
 $root = Resolve-Path "$PSScriptRoot\.."
 Push-Location $root
 try {
-    # Supply chain: fail the build on any known-vulnerable direct or transitive package.
-    $vuln = dotnet list RemoteTool.sln package --vulnerable --include-transitive 2>&1 | Out-String
-    Write-Host $vuln
-    if ($vuln -match "has the following vulnerable packages") { throw "Vulnerable NuGet packages found. See output above." }
+    & "$PSScriptRoot\check-vulnerabilities.ps1"   # supply chain: fails on known-vulnerable packages, or if the scan cannot run
 
     if (-not $SkipTests) {
         dotnet test RemoteTool.sln -c $Configuration --nologo

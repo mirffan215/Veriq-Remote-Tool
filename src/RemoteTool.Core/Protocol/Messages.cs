@@ -182,7 +182,7 @@ public sealed record ScreenInfoMessage(IReadOnlyList<MonitorInfo> Monitors, byte
         for (var i = 0; i < count; i++)
         {
             var m = new MonitorInfo(r.U8(), r.I32(), r.I32(), r.I32(), r.I32(), r.Bool(), r.Str(32));
-            if (m.Width is <= 0 or > 65535 || m.Height is <= 0 or > 65535) throw new ProtocolException("invalid monitor size");
+            if (m.Width <= 0 || m.Height <= 0 || (long)m.Width * m.Height > ProtocolConstants.MaxFramePixels) throw new ProtocolException("invalid monitor size");
             list.Add(m);
         }
         if (active >= count) throw new ProtocolException("invalid active monitor");
@@ -210,13 +210,16 @@ public sealed record FrameUpdateMessage(byte MonitorIndex, uint Sequence, int Wi
         int w = r.U16(), h = r.U16();
         var key = r.Bool();
         int n = r.U16();
-        if (w == 0 || h == 0) throw new ProtocolException("invalid frame size");
+        if (w == 0 || h == 0 || (long)w * h > ProtocolConstants.MaxFramePixels) throw new ProtocolException("invalid frame size");
         if (n > ProtocolConstants.MaxRectsPerFrame) throw new ProtocolException("too many rects");
         var rects = new List<TileRect>(n);
+        long area = 0;
         for (var i = 0; i < n; i++)
         {
             int x = r.U16(), y = r.U16(), rw = r.U16(), rh = r.U16();
             if (rw == 0 || rh == 0 || x + rw > w || y + rh > h) throw new ProtocolException("rect outside frame");
+            area += (long)rw * rh;
+            if (area > 4L * w * h) throw new ProtocolException("rect area exceeds 4x the frame (decode amplification)");
             rects.Add(new TileRect(x, y, rw, rh, r.Bytes(ProtocolConstants.MaxRectJpegBytes)));
         }
         r.EnsureEnd();
@@ -407,7 +410,7 @@ public sealed record VideoFrameMessage(byte MonitorIndex, uint Sequence, int Wid
     {
         var r = new ProtoReader(p);
         var m = new VideoFrameMessage(r.U8(), r.U32(), r.U16(), r.U16(), r.Bool(), Array.Empty<byte>());
-        if (m.Width == 0 || m.Height == 0) throw new ProtocolException("invalid frame size");
+        if (m.Width == 0 || m.Height == 0 || (long)m.Width * m.Height > ProtocolConstants.MaxFramePixels) throw new ProtocolException("invalid frame size");
         var data = r.Bytes(ProtocolConstants.MaxRectJpegBytes);
         r.EnsureEnd();
         return m with { Data = data };

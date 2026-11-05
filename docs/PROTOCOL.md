@@ -134,3 +134,7 @@ The pipe name is random per launch, its ACL admits SYSTEM only, and the service 
 ## 9. Recording file format (`.rtrec`)
 `"RTREC001" | u16 version | 8B nonce prefix | bytes(wrapped key)` then records `u32 length | AES-256-GCM(ciphertext ‖ 16B tag)`; nonce = prefix ‖ u32 counter, AAD = header ‖ counter.
 Plaintext = `u64 ms | u8 type (1 meta, 2 tile frame, 3 H.264 frame, 4 event, 5 end) | payload`. A missing `End` record means the session or machine crashed.
+
+## 10. LAN discovery (UDP 21119, not part of the TLS channel)
+Probe: `"RTDISC1"(7) ‖ 16B random nonce ‖ zero padding`, total ≥ 128 bytes (≤ 512). Reply (only if the PC is visible): `"RTDISR1"(7) ‖ nonce(16) ‖ u16 tcpPort ‖ str code(10–12 digits) ‖ str name(≤24 chars)`, **always ≤ 128 bytes**, so it can never be larger than the probe that triggered it.
+The prober accepts a reply only if the nonce matches its own probe, the code is a valid code and the port is non-zero. Replies are hints: a TCP connection to the announced address still runs §4 and consent. Relay messages carry the code as `str id(10–12)`.

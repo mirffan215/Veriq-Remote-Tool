@@ -13,6 +13,8 @@ public static class ProtocolConstants
     public const int Pbkdf2Iterations = 600_000;
     public const int MaxNameChars = 64;
     public const int MaxMonitors = 16;
+    /// <summary>Largest surface a peer may announce (8K = 33 MP; this allows 8192x8192). Bounds the viewer's bitmap and decode buffers against hostile hosts.</summary>
+    public const long MaxFramePixels = 8192L * 8192;
     public const int MaxClipboardBytes = 1024 * 1024;
     public const int DefaultFileChunk = 64 * 1024;
     public const int MaxFileChunk = 256 * 1024;

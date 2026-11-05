@@ -37,8 +37,8 @@ public static class RecordingExporter
                         if (canvas is null || f.Width != w || f.Height != h) { w = f.Width; h = f.Height; canvas = new byte[w * h * 4]; }
                         foreach (var r in f.Rects)
                         {
-                            var px = JpegCodec.Decode(r.Jpeg, out var rw, out var rh);
-                            for (var y = 0; y < rh; y++) Buffer.BlockCopy(px, y * rw * 4, canvas, ((r.Y + y) * w + r.X) * 4, rw * 4);
+                            var px = JpegCodec.DecodeExpecting(r.Jpeg, r.Width, r.Height);
+                            for (var y = 0; y < r.Height; y++) Buffer.BlockCopy(px, y * r.Width * 4, canvas, ((r.Y + y) * w + r.X) * 4, r.Width * 4);
                         }
                         frames++;
                         if (rec.Time >= next) { WritePng(canvas, w, h, Path.Combine(outputDirectory, $"frame-{(int)rec.Time.TotalSeconds:D6}s.png")); images++; next = rec.Time + interval; }

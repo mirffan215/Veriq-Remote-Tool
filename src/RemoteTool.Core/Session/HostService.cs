@@ -17,7 +17,11 @@ public sealed record PeerOrigin(string SourceKey, string Display, bool ViaRelay,
 /// </summary>
 public sealed partial class HostService : IAsyncDisposable
 {
-    private const int MaxPreAuth = 4;
+    /// <summary>Unauthenticated connections in flight: at most this many overall, and at most <see cref="MaxPreAuthPerSource"/> per source,
+    /// so a few idle sockets from one attacker cannot lock everybody else out (found by SecurityAttackTests).</summary>
+    private const int MaxPreAuth = 16, MaxPreAuthPerSource = 2;
+    private static readonly TimeSpan TlsStartTimeout = TimeSpan.FromSeconds(8);
+    private readonly Dictionary<string, int> _preAuthBySource = new();
     private const int TargetFps = 20;
 
     private readonly Func<IFrameProducer> _producerFactory;
@@ -107,6 +111,28 @@ public sealed partial class HostService : IAsyncDisposable
     public Task<FileSendOutcome> SendFileAsync(string path, IProgress<long>? progress = null, CancellationToken ct = default)
         => _activeFiles is { } f ? f.SendAsync(path, progress, ct) : Task.FromResult(FileSendOutcome.Failed);
 
+    private bool TryEnterPreAuth(string source)
+    {
+        lock (_preAuthBySource)
+        {
+            if (_preAuth >= MaxPreAuth) return false;
+            _preAuthBySource.TryGetValue(source, out var n);
+            if (n >= MaxPreAuthPerSource) return false;
+            _preAuthBySource[source] = n + 1;
+            _preAuth++;
+            return true;
+        }
+    }
+
+    private void LeavePreAuth(string source)
+    {
+        lock (_preAuthBySource)
+        {
+            _preAuth--;
+            if (_preAuthBySource.TryGetValue(source, out var n)) { if (n <= 1) _preAuthBySource.Remove(source); else _preAuthBySource[source] = n - 1; }
+        }
+    }
+
     private bool IpAllowed(IPAddress? ip)
     {
         var list = Policy.IpAllowList;
@@ -121,9 +147,9 @@ public sealed partial class HostService : IAsyncDisposable
     {
         using var link = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
         var token = link.Token;
-        if (Interlocked.Increment(ref _preAuth) > MaxPreAuth)
+        if (!TryEnterPreAuth(origin.SourceKey))
         {
-            Interlocked.Decrement(ref _preAuth);
+            _audit.Write("connection_rejected", ("source", origin.Display), ("reason", "too-many-unauthenticated"));
             await raw.DisposeAsync().ConfigureAwait(false);
             return;
         }
@@ -146,7 +172,7 @@ public sealed partial class HostService : IAsyncDisposable
             using var cert = EphemeralCertificate.Create("RemoteTool host");
             using (var tlsCts = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
-                tlsCts.CancelAfter(ProtocolConstants.HandshakeTimeout);
+                tlsCts.CancelAfter(TlsStartTimeout);   // a peer that does not even start TLS is not worth a slot
                 ch = await TlsChannel.AcceptAsync(raw, cert.Certificate, tlsCts.Token).ConfigureAwait(false);
             }
             raw = Stream.Null; // ownership moved to the TLS stream
@@ -171,7 +197,7 @@ public sealed partial class HostService : IAsyncDisposable
                 _audit.Write("auth_busy", ("source", origin.Display));
                 return;
             }
-            Interlocked.Decrement(ref _preAuth);
+            LeavePreAuth(origin.SourceKey);
             preAuthHeld = false;
             try
             {
@@ -191,7 +217,7 @@ public sealed partial class HostService : IAsyncDisposable
         }
         finally
         {
-            if (preAuthHeld) Interlocked.Decrement(ref _preAuth);
+            if (preAuthHeld) LeavePreAuth(origin.SourceKey);
             if (ch is not null) await ch.Stream.DisposeAsync().ConfigureAwait(false);
             else await raw.DisposeAsync().ConfigureAwait(false);
         }

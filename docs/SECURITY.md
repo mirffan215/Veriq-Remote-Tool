@@ -33,6 +33,17 @@ A.8.24 cryptography, A.8.26 application security) and NCA ECC (identity/access, 
 | **Supply chain** | Pinned NuGet versions, vulnerability gate in scripts/CI, dependency list in BUILD.md, Authenticode signing guidance | CI |
 | **Resource exhaustion** | Pre-auth connection cap (4), handshake/consent timeouts, heartbeat timeout, relay: max hosts/sessions/connections, idle timeout, pending-pairing timeout | partly tested |
 
+## LAN mode threats
+| Threat | Controls | Verification |
+|---|---|---|
+| Discovery used for reconnaissance | silent unless the owner enables *Visible on the local network*; discloses only code, display name, port | `InvisiblePcStaysSilent…` |
+| Discovery used as DDoS amplifier | probe ≥128 bytes required, reply never larger, per-source and global rate limit | `ResponderNeverAmplifies…`, `ProbesAreRateLimitedPerSource` |
+| Forged/replayed discovery answers | nonce-bound replies, strict parsing, code and port validated; results are hints only | `ForgedAndMalformedRepliesAreIgnored…` |
+| Rogue neighbour pretending to be a PC | viewer verifies the host proof; cannot log in without the password (offline-guess residual risk, report R1) | `RogueHostWithoutThePassword…` |
+| Firewall over-exposure | rules limited to program + Private/Domain + local subnet | `FirewallRulesAreScoped…` |
+
+See **docs/SECURITY-TEST-REPORT.md** for the complete attack-test results, the three findings fixed in this pass and the residual risks.
+
 ## Phase 3 threats
 
 | Threat | Controls | Verification |
