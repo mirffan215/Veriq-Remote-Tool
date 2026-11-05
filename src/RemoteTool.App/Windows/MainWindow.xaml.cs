@@ -45,6 +45,8 @@ public partial class MainWindow : Window
         RelayAddressBox.Text = s.RelayAddress;
         RelayFingerprintBox.Text = s.RelayFingerprint;
         DirectBox.IsChecked = s.DirectListenerEnabled;
+        LanVisibleBox.IsChecked = s.LanVisible;
+        LanFirstBox.IsChecked = s.LanFirst;
         DirectPortBox.Text = s.DirectPort.ToString();
         AllowListBox.Text = string.Join(", ", s.IpAllowList);
         ThemeSystem.IsChecked = s.Theme == "System";
@@ -52,6 +54,27 @@ public partial class MainWindow : Window
         ThemeDark.IsChecked = s.Theme == "Dark";
         RefreshRecent();
         RefreshAddresses();
+    }
+
+    private sealed record LanItem(string Endpoint, string Label) { public override string ToString() => Label; }
+
+    private async void LanFind_Click(object sender, RoutedEventArgs e)
+    {
+        LanFindButton.IsEnabled = false;
+        LanStatus.Text = "  " + Loc.T("Lan_Searching");
+        try
+        {
+            var hosts = await _viewer.FindLanHostsAsync(CancellationToken.None);
+            LanList.ItemsSource = hosts.Select(h => new LanItem(h.Endpoint, Loc.F("Lan_Item", h.Name, ConnectionId.Format(h.Id), h.Endpoint))).ToList();
+            LanStatus.Text = hosts.Count == 0 ? "  " + Loc.T("Lan_None") : "";
+        }
+        finally { LanFindButton.IsEnabled = true; }
+    }
+
+    /// <summary>Discovery results are hints only: choosing one just fills in ip:port - the password handshake still decides.</summary>
+    private void LanList_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (LanList.SelectedItem is LanItem i) { TargetBox.Text = i.Endpoint; ConnectPasswordBox.Focus(); }
     }
 
     private sealed record AddrItem(string Target, string Nickname, string Label) { public override string ToString() => Label; }
@@ -156,6 +179,8 @@ public partial class MainWindow : Window
         if (RelayKeyBox.Password.Length > 0) s.RelayAccessKeyProtected = _protector.Protect(RelayKeyBox.Password);
         RelayKeyBox.Clear();
         s.DirectListenerEnabled = DirectBox.IsChecked == true;
+        s.LanVisible = LanVisibleBox.IsChecked == true && s.DirectListenerEnabled;   // visibility needs the listener
+        s.LanFirst = LanFirstBox.IsChecked == true;
         s.DirectPort = port;
         s.IpAllowList = AllowListBox.Text.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
         s.Theme = ThemeDark.IsChecked == true ? "Dark" : ThemeLight.IsChecked == true ? "Light" : "System";

@@ -5,6 +5,7 @@ using RemoteTool.App.Windows;
 using RemoteTool.Capture;
 using RemoteTool.Core.Audit;
 using RemoteTool.Core.Config;
+using RemoteTool.Core.Lan;
 using RemoteTool.Core.Protocol;
 using RemoteTool.Core.Relay;
 using RemoteTool.Core.Session;
@@ -22,6 +23,7 @@ public sealed class HostController : IAsyncDisposable
     private BannerWindow? _banner;
     private HotKeyListener? _hotkey;
     private string _relayKey = "";
+    private LanResponder? _lan;
 
     public HostService Service { get; }
     public string? LastError { get; private set; }
@@ -76,6 +78,7 @@ public sealed class HostController : IAsyncDisposable
         {
             if (Service.RelayStatus != RelayStatus.Disabled) _ = Service.StopRelayAsync();
             if (Service.DirectListening) Service.StopDirectListener();
+            SetLanVisible(false);
             _relayKey = "";
             RaiseChanged();
             return;
@@ -107,7 +110,29 @@ public sealed class HostController : IAsyncDisposable
             s.DirectListenerEnabled = false;
             _store.Save();
         }
+        SetLanVisible(s.DirectListenerEnabled && s.LanVisible && Service.DirectListening);
         RaiseChanged();
+    }
+
+    /// <summary>LAN discovery answers probes only while the owner enabled BOTH the direct listener and "visible on local network".</summary>
+    private void SetLanVisible(bool on)
+    {
+        if (on && _lan is null)
+        {
+            try
+            {
+                _lan = new LanResponder(() => new LanAnnouncement(_store.Current.Id, _store.Current.DisplayName, _store.Current.DirectPort), audit: _audit);
+                _lan.Start();
+                _audit.Write("lan_visibility_on");
+            }
+            catch (System.Net.Sockets.SocketException e) { LastError = e.Message; _lan = null; }
+        }
+        else if (!on && _lan is not null)
+        {
+            _lan.Dispose();
+            _lan = null;
+            _audit.Write("lan_visibility_off");
+        }
     }
 
     public void AuditSettingsChanged()
@@ -165,6 +190,7 @@ public sealed class HostController : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _lan?.Dispose();
         await Service.DisposeAsync();
         await _ui.InvokeAsync(() => { _banner?.Close(); _hotkey?.Dispose(); });
     }

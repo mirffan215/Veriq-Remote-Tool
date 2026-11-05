@@ -1,6 +1,7 @@
 using System.Text.Json;
 using RemoteTool.Core.Audit;
 using RemoteTool.Core.Config;
+using RemoteTool.Core.Lan;
 using RemoteTool.Core.Protocol;
 using RemoteTool.Core.Recording;
 using RemoteTool.Core.Relay;
@@ -25,6 +26,7 @@ public sealed class ServiceRuntime : IAsyncDisposable
     private readonly HelperSupervisor _helpers;
     private readonly ISasSender _sas;
     private HostService? _host;
+    private LanResponder? _lan;
     private string _relayStatus = "Disabled";
 
     public ServiceRuntime(ServicePaths paths, ISecretProtector protector, IHelperLauncher launcher, ISasSender sas, IAuditLog? audit = null, TimeSpan? helperRetry = null)
@@ -42,6 +44,7 @@ public sealed class ServiceRuntime : IAsyncDisposable
 
     public HostService Host => _host ?? throw new InvalidOperationException("not started");
     public ServiceConfig Config => _cfg;
+    public int? LanPort => _lan?.Port;
     public HelperSupervisor Helpers => _helpers;
 
     public void Start()
@@ -74,6 +77,16 @@ public sealed class ServiceRuntime : IAsyncDisposable
         {
             try { _host.StartDirectListener(_cfg.DirectPort); } catch (Exception e) when (e is System.Net.Sockets.SocketException) { _audit.Write("direct_listener_failed", ("error", e.GetType().Name)); }
         }
+        if (_cfg.DirectListenerEnabled && _cfg.LanVisible)
+        {
+            try
+            {
+                _lan = new LanResponder(() => new LanAnnouncement(_cfg.Id, _cfg.DisplayName, _cfg.DirectPort), _cfg.LanDiscoveryPort, audit: _audit);
+                _lan.Start();
+                _audit.Write("lan_visibility_on", ("port", _lan.Port));
+            }
+            catch (System.Net.Sockets.SocketException e) { _audit.Write("lan_visibility_failed", ("error", e.GetType().Name)); }
+        }
         _audit.Write("service_started", ("id", _cfg.Id), ("unattendedEnabled", _cfg.UnattendedEnabled), ("permanentPasswordSet", _permanent.Enabled), ("recording", _cfg.RecordSessions));
         WriteStatus();
     }
@@ -102,6 +115,7 @@ public sealed class ServiceRuntime : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _audit.Write("service_stopping");
+        _lan?.Dispose();
         if (_host is not null) await _host.DisposeAsync().ConfigureAwait(false);
         await _helpers.DisposeAsync().ConfigureAwait(false);
     }

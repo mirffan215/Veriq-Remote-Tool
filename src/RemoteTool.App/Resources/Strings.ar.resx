@@ -118,4 +118,12 @@
  <data name="Viewer_CtrlAltDel" xml:space="preserve"><value>Ctrl+Alt+Del</value></data>
  <data name="Connect_Unattended" xml:space="preserve"><value>استخدام كلمة المرور الدائمة (بدون مراقبة)</value></data>
  <data name="Banner_Rec" xml:space="preserve"><value>● تسجيل</value></data>
+ <data name="Lan_Visible" xml:space="preserve"><value>مرئي على الشبكة المحلية (يتيح لمن على هذه الشبكة العثور على هذا الجهاز؛ يتطلب تفعيل الاتصال المباشر)</value></data>
+ <data name="Lan_First" xml:space="preserve"><value>عند الاتصال بالرمز، ابحث في الشبكة المحلية أولًا</value></data>
+ <data name="Lan_Find" xml:space="preserve"><value>البحث عن أجهزة في هذه الشبكة</value></data>
+ <data name="Lan_Searching" xml:space="preserve"><value>جارٍ البحث…</value></data>
+ <data name="Lan_None" xml:space="preserve"><value>لم يتم العثور على أجهزة مرئية.</value></data>
+ <data name="Lan_Item" xml:space="preserve"><value>{0}  -  {1}  ({2})</value></data>
+ <data name="Err_NoRelayNoLan" xml:space="preserve"><value>لم يُعثر على هذا الرمز في الشبكة المحلية، ولا يوجد خادم مرحّل مُعدّ للاتصال عبر الإنترنت.</value></data>
+ <data name="Svc_Lan" xml:space="preserve"><value>وضع الشبكة المحلية: السماح باتصالات الشبكة المحلية والاكتشاف (يفتح جدار الحماية للشبكة الفرعية المحلية في الشبكات الخاصة/النطاق فقط)</value></data>
 </root>

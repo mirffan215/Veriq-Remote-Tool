@@ -118,4 +118,12 @@ It will be saved in the "RemoteTool Received" folder. Only accept files you expe
  <data name="Viewer_CtrlAltDel" xml:space="preserve"><value>Ctrl+Alt+Del</value></data>
  <data name="Connect_Unattended" xml:space="preserve"><value>Use permanent (unattended) password</value></data>
  <data name="Banner_Rec" xml:space="preserve"><value>● REC</value></data>
+ <data name="Lan_Visible" xml:space="preserve"><value>Visible on the local network (lets people on this network find this PC; needs direct connections)</value></data>
+ <data name="Lan_First" xml:space="preserve"><value>When connecting by code, look on the local network first</value></data>
+ <data name="Lan_Find" xml:space="preserve"><value>Find PCs on this network</value></data>
+ <data name="Lan_Searching" xml:space="preserve"><value>Searching…</value></data>
+ <data name="Lan_None" xml:space="preserve"><value>No visible PCs found.</value></data>
+ <data name="Lan_Item" xml:space="preserve"><value>{0}  -  {1}  ({2})</value></data>
+ <data name="Err_NoRelayNoLan" xml:space="preserve"><value>That code was not found on the local network, and no relay server is configured for internet connections.</value></data>
+ <data name="Svc_Lan" xml:space="preserve"><value>Local network mode: allow LAN connections and discovery (opens the firewall for the local subnet on Private/Domain networks only)</value></data>
 </root>

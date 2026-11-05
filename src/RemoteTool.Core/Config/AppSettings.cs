@@ -26,6 +26,10 @@ public sealed class AppSettings
     public string RelayAccessKeyProtected { get; set; } = "";
     public bool DirectListenerEnabled { get; set; }
     public int DirectPort { get; set; } = ConnectTarget.DefaultDirectPort;
+    /// <summary>Answer LAN discovery probes (needs the direct listener). Off by default: a PC is invisible unless its owner says otherwise.</summary>
+    public bool LanVisible { get; set; }
+    /// <summary>When connecting by code, look on the local network before using the relay.</summary>
+    public bool LanFirst { get; set; }
     public List<string> IpAllowList { get; set; } = new();
     public bool ViewOnly { get; set; }
     public bool AllowClipboard { get; set; } = true;

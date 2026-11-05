@@ -25,7 +25,7 @@ public partial class ServiceSetupWindow : Window
             var cfg = new ServiceConfigStore(paths.ConfigFile).Load();
             NameBox.Text = cfg.DisplayName; RelayBox.Text = cfg.RelayAddress; FingerprintBox.Text = cfg.RelayFingerprint;
             EnabledBox.IsChecked = cfg.UnattendedEnabled; ConsentBox.IsChecked = cfg.ConsentWhenUserPresent;
-            RecordBox.IsChecked = cfg.RecordSessions; RetentionBox.Text = cfg.RecordingRetentionDays.ToString();
+            RecordBox.IsChecked = cfg.RecordSessions; LanBox.IsChecked = cfg.DirectListenerEnabled && cfg.LanVisible; RetentionBox.Text = cfg.RecordingRetentionDays.ToString();
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { NameBox.Text = Environment.MachineName; }
         var state = ServiceInstaller.IsInstalled() ? (ServiceInstaller.IsRunning() ? Loc.T("Svc_Running") : Loc.T("Svc_Stopped")) : Loc.T("Svc_NotInstalled");
@@ -37,7 +37,7 @@ public partial class ServiceSetupWindow : Window
         if (Pw1Box.Password != Pw2Box.Password) { ResultText.Text = Loc.T("Svc_Mismatch"); return; }
         if (Pw1Box.Password.Length > 0 && PermanentPasswordStore.Validate(Pw1Box.Password) is { } problem) { ResultText.Text = problem; return; }
         var input = new ServiceSetupInput(RelayBox.Text, KeyBox.Password, FingerprintBox.Text, NameBox.Text, EnabledBox.IsChecked == true,
-            ConsentBox.IsChecked == true, RecordBox.IsChecked == true, int.TryParse(RetentionBox.Text, out var d) ? d : 30, Pw1Box.Password);
+            ConsentBox.IsChecked == true, RecordBox.IsChecked == true, int.TryParse(RetentionBox.Text, out var d) ? d : 30, Pw1Box.Password, LanBox.IsChecked == true);
         ApplyButton.IsEnabled = false;
         ResultText.Text = "…";
         try

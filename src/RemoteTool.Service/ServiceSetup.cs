@@ -6,7 +6,7 @@ using RemoteTool.Service.Windows;
 namespace RemoteTool.Service;
 
 public sealed record ServiceSetupInput(string RelayAddress, string? RelayKey, string Fingerprint, string DisplayName, bool Enabled,
-    bool ConsentWhenUserPresent, bool Record, int RetentionDays, string? NewPermanentPassword);
+    bool ConsentWhenUserPresent, bool Record, int RetentionDays, string? NewPermanentPassword, bool Lan = false);
 
 /// <summary>Elevated configuration of the unattended-access service. Order matters: ACL-protected folders exist before any secret is written.</summary>
 [SupportedOSPlatform("windows")]
@@ -36,9 +36,14 @@ public static class ServiceSetup
         cfg.ConsentWhenUserPresent = i.ConsentWhenUserPresent;
         cfg.RecordSessions = i.Record;
         cfg.RecordingRetentionDays = Math.Clamp(i.RetentionDays, 1, 3650);
+        cfg.DirectListenerEnabled = i.Lan;       // LAN mode = direct listener + discovery; internet mode needs neither
+        cfg.LanVisible = i.Lan;
         store.Save(cfg);
 
-        // 3. make the service pick it up
+        // 3. firewall: inbound only for the LAN option, only on Private/Domain networks, only from the local subnet
+        FirewallRules.Apply(ServiceInstaller.InstalledExe, cfg.DirectPort, cfg.LanDiscoveryPort, enable: i.Lan, log);
+
+        // 4. make the service pick it up
         ServiceInstaller.Restart(log);
         return cfg.Id;
     }
@@ -79,7 +84,7 @@ public static class ServiceStatus
 /// <summary>
 /// Headless configuration for software-distribution tools (Intune, SCCM, scripts):
 /// <c>RemoteTool.exe --configure-service --relay host:443 [--relay-fp HEX] [--relay-key-env VAR] [--password-env VAR] [--name N]
-/// [--enable] [--no-user-consent] [--record] [--retention-days 30]</c>.
+/// [--enable] [--no-user-consent] [--record] [--retention-days 30] [--lan]</c>.
 /// Secrets are read from environment variables named on the command line, never from the command line itself (process lists are readable).
 /// </summary>
 public static class ServiceSetupArgs
@@ -108,7 +113,7 @@ public static class ServiceSetupArgs
             if (enable && password is null) return (null, "--enable needs --password-env (a permanent password must exist before unattended access can be enabled)");
             var days = int.TryParse(Arg("--retention-days"), out var d) ? d : 30;
             return (new ServiceSetupInput(relay, Secret("--relay-key-env"), Arg("--relay-fp") ?? "", Arg("--name") ?? Environment.MachineName, enable,
-                ConsentWhenUserPresent: !Has("--no-user-consent"), Record: Has("--record"), RetentionDays: days, NewPermanentPassword: password), null);
+                ConsentWhenUserPresent: !Has("--no-user-consent"), Record: Has("--record"), RetentionDays: days, NewPermanentPassword: password, Lan: Has("--lan")), null);
         }
         catch (ArgumentException e) { return (null, e.Message); }
     }

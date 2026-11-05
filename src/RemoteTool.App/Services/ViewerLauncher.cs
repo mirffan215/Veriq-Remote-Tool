@@ -1,6 +1,7 @@
 using System.Net.Sockets;
 using RemoteTool.Core.Audit;
 using RemoteTool.Core.Config;
+using RemoteTool.Core.Lan;
 using RemoteTool.Core.Protocol;
 using RemoteTool.Core.Relay;
 using RemoteTool.Core.Session;
@@ -39,6 +40,14 @@ public sealed class ViewerLauncher
         {
             case ConnectTarget.ById byId:
             {
+                var hasRelay = RelayEndpoint.TryParseList(s.RelayAddress, "", "", out _);
+                // Local network first when asked to, or when there is no relay at all (pure LAN deployment).
+                if (s.LanFirst || !hasRelay)
+                {
+                    var lan = await LanDiscovery.FindAsync(byId.Id, TimeSpan.FromMilliseconds(1500), ct);
+                    if (lan is not null) { _audit.Write("lan_resolved", ("address", lan.Address.ToString())); return await DialAsync(new ConnectTarget.Direct(lan.Address.ToString(), lan.Port), ct); }
+                    if (!hasRelay) throw new ConnectFailedException(ConnectFailure.NotFound, Localization.Loc.T("Err_NoRelayNoLan"));
+                }
                 var key = string.IsNullOrEmpty(s.RelayAccessKeyProtected) ? "" : _protector.Unprotect(s.RelayAccessKeyProtected);
                 if (!RelayEndpoint.TryParseList(s.RelayAddress, key, s.RelayFingerprint, out var relays))
                     throw new ConnectFailedException(ConnectFailure.Network, Localization.Loc.T("Err_NoRelay"));
@@ -63,6 +72,9 @@ public sealed class ViewerLauncher
             default: throw new ArgumentException("unknown target");
         }
     }
+
+    /// <summary>"Find PCs on this network": every visible RemoteTool PC on the local subnet(s).</summary>
+    public Task<IReadOnlyList<LanHost>> FindLanHostsAsync(CancellationToken ct) => LanDiscovery.DiscoverAsync(TimeSpan.FromMilliseconds(1500), ct);
 
     public async Task<(ViewerSession Session, ViewerContext Context)> ConnectAsync(ConnectTarget target, string password, bool permanent, CancellationToken ct)
     {

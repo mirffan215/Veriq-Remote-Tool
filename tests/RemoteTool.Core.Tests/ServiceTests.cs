@@ -398,3 +398,57 @@ public class ServiceSetupArgsTests
         Assert.False(def.Enabled);                                       // nothing is enabled unless asked for
     }
 }
+
+public class LanServiceTests
+{
+    [Fact]
+    public void FirewallRulesAreScopedToProgramPrivateDomainAndLocalSubnet_NeverPublic()
+    {
+        var rules = RemoteTool.Service.Windows.FirewallCommands.Add(@"C:\Program Files\RemoteTool\RemoteTool.exe", 21118, 21119);
+        Assert.Equal(2, rules.Count);
+        foreach (var r in rules)
+        {
+            Assert.Contains("dir=in", r); Assert.Contains("profile=private,domain", r); Assert.Contains("remoteip=localsubnet", r);
+            Assert.Contains(@"program=C:\Program Files\RemoteTool\RemoteTool.exe", r);
+            Assert.DoesNotContain(r, a => a.Contains("public", StringComparison.OrdinalIgnoreCase) || a.Contains("any", StringComparison.OrdinalIgnoreCase) || a.Contains("profile=all"));
+        }
+        Assert.Contains(rules[0], a => a == "protocol=TCP"); Assert.Contains(rules[0], a => a == "localport=21118");
+        Assert.Contains(rules[1], a => a == "protocol=UDP"); Assert.Contains(rules[1], a => a == "localport=21119");
+        Assert.Equal(2, RemoteTool.Service.Windows.FirewallCommands.Remove().Count);
+    }
+
+    [Fact]
+    public void LanFlagTurnsOnDirectListenerAndVisibility_OnlyWhenAsked()
+    {
+        var (on, _) = RemoteTool.Service.ServiceSetupArgs.Parse(new[] { "--lan" }, _ => null);
+        Assert.True(on!.Lan);
+        var (off, _) = RemoteTool.Service.ServiceSetupArgs.Parse(Array.Empty<string>(), _ => null);
+        Assert.False(off!.Lan);
+    }
+
+    [Fact]
+    public async Task ServiceAnswersDiscoveryOnlyWhenLanModeIsOn()
+    {
+        foreach (var lan in new[] { false, true })
+        {
+            var root = Path.Combine(Path.GetTempPath(), "rt-svc-lan-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var paths = new RemoteTool.Service.ServicePaths(root);
+                Directory.CreateDirectory(paths.ServiceDir);
+                var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0); probe.Start(); var port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port; probe.Stop();
+                var store = new RemoteTool.Service.ServiceConfigStore(paths.ConfigFile);
+                var cfg = store.Load();
+                cfg.UnattendedEnabled = true; cfg.DirectListenerEnabled = true; cfg.DirectPort = port; cfg.LanVisible = lan; cfg.LanDiscoveryPort = 0; cfg.DisplayName = "SVC-LAN";
+                store.Save(cfg);
+                await using var rt = new RemoteTool.Service.ServiceRuntime(paths, new TestProtector(), new FakeHelperLauncher(), new FakeSas(), new ListAudit(), TimeSpan.FromMilliseconds(100));
+                rt.Start();
+                if (!lan) { Assert.Null(rt.LanPort); continue; }
+                var udp = Assert.IsType<int>(rt.LanPort);
+                var hosts = await RemoteTool.Core.Lan.LanDiscovery.DiscoverAsync(TimeSpan.FromMilliseconds(700), default, udp, new[] { new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, udp) });
+                Assert.Equal(cfg.Id, Assert.Single(hosts).Id);
+            }
+            finally { try { Directory.Delete(root, true); } catch { } }
+        }
+    }
+}

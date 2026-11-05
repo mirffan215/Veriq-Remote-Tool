@@ -20,6 +20,9 @@ public sealed class ServiceConfig
     public int RecordingRetentionDays { get; set; } = 30;
     public bool DirectListenerEnabled { get; set; }
     public int DirectPort { get; set; } = ConnectTarget.DefaultDirectPort;
+    /// <summary>Answer LAN discovery probes (requires the direct listener). Off by default.</summary>
+    public bool LanVisible { get; set; }
+    public int LanDiscoveryPort { get; set; } = RemoteTool.Core.Lan.LanProtocol.Port;
     public List<string> IpAllowList { get; set; } = new();
 }
 

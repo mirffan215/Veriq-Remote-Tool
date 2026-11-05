@@ -62,6 +62,7 @@ public static class ServiceInstaller
     {
         if (!IsAdministrator()) throw new UnauthorizedAccessException("Administrator rights are required.");
         if (IsInstalled()) { Run(ScCommands.Stop(), log, ignoreErrors: true); WaitStopped(); Run(ScCommands.Delete(), log, ignoreErrors: true); }
+        FirewallRules.Apply(InstalledExe, 0, 0, enable: false, log);
         try { if (Directory.Exists(InstallDirectory)) Directory.Delete(InstallDirectory, true); } catch (IOException) { log("Could not remove the install folder yet (helper still exiting); remove it manually."); }
         if (purgeData && Directory.Exists(paths.ServiceDir)) Directory.Delete(paths.ServiceDir, true);
     }
@@ -109,5 +110,53 @@ public static class ServiceInstaller
         if (usersMayRead)
             sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null), FileSystemRights.ReadAndExecute, inherit, PropagationFlags.None, AccessControlType.Allow));
         new DirectoryInfo(dir).SetAccessControl(sec);
+    }
+}
+
+/// <summary>
+/// Windows Firewall rules for the LAN option. Inbound is allowed ONLY for this program, ONLY on Private and Domain networks (never Public) and ONLY from
+/// the local subnet. Internet-only installs add no inbound rule at all.
+/// </summary>
+public static class FirewallCommands
+{
+    public const string TcpRule = "RemoteToolLAN-TCP", UdpRule = "RemoteToolLAN-Discovery";
+
+    public static IReadOnlyList<string[]> Add(string exePath, int tcpPort, int udpPort) => new[]
+    {
+        Rule(TcpRule, exePath, "TCP", tcpPort),
+        Rule(UdpRule, exePath, "UDP", udpPort),
+    };
+
+    public static IReadOnlyList<string[]> Remove() => new[]
+    {
+        new[] { "advfirewall", "firewall", "delete", "rule", $"name={TcpRule}" },
+        new[] { "advfirewall", "firewall", "delete", "rule", $"name={UdpRule}" },
+    };
+
+    private static string[] Rule(string name, string exe, string proto, int port) => new[]
+    {
+        "advfirewall", "firewall", "add", "rule", $"name={name}", "dir=in", "action=allow", $"program={exe}", $"protocol={proto}",
+        $"localport={port}", "profile=private,domain", "remoteip=localsubnet", "enable=yes",
+    };
+}
+
+[SupportedOSPlatform("windows")]
+public static class FirewallRules
+{
+    public static void Apply(string exePath, int tcpPort, int udpPort, bool enable, Action<string> log)
+    {
+        foreach (var rm in FirewallCommands.Remove()) Run(rm, log);          // idempotent: replace any previous rule
+        if (!enable) return;
+        foreach (var add in FirewallCommands.Add(exePath, tcpPort, udpPort)) Run(add, log);
+    }
+
+    private static void Run(string[] args, Action<string> log)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("netsh.exe") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+        foreach (var a in args) psi.ArgumentList.Add(a);
+        using var p = System.Diagnostics.Process.Start(psi)!;
+        p.StandardOutput.ReadToEnd();
+        p.WaitForExit();
+        log($"netsh {args[2]} {args[3]} -> {p.ExitCode}");
     }
 }
