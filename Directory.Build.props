@@ -5,6 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- Only RemoteTool.App turns WPF on (its csproj sets it later). Stops a stray setting from making non-Windows projects fail with NETSDK1136. -->
+    <UseWPF>false</UseWPF>
+    <UseWindowsForms>false</UseWindowsForms>
     <Deterministic>true</Deterministic>
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
